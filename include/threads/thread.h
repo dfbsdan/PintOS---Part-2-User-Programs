@@ -9,7 +9,6 @@
 #include "vm/vm.h"
 #endif
 
-
 /* States in a thread's life cycle. */
 enum thread_status {
 	THREAD_RUNNING,     /* Running thread. */
@@ -91,9 +90,26 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
+	int original_priority;							/* Original priority of the thread,
+																				 i.e. that has NOT been
+																				 donated. */
+	struct list_elem all_elem;					/* Element used in the all_list. */
+	int recent_cpu;											/* Recent cpu value (mlfqs). */
+	int nice;														/* Niceness value (mlfqs). */
+
+	/* Shared between thread.c and timer.c. */
+	int64_t alarm;                      /* Holds the number of ticks that
+																				 define the wake up time of a
+																				 thread. */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+	struct lock *waiting_lock;					/* Holds a pointer to a lock the
+																				 thread is waiting for, if there
+																				 is no such lock, it is NULL by
+																				 default. */
+	struct list locks_held;							/* List of locks being held by the
+																				 thread. */
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -125,6 +141,7 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
+void thread_sleep (void);
 
 struct thread *thread_current (void);
 tid_t thread_tid (void);
@@ -135,6 +152,8 @@ void thread_yield (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void thread_donate_priority (struct thread *target);
+void thread_update_priority (void);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
