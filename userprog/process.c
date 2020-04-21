@@ -586,7 +586,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 /* Initializes a process' stack. */
 static bool
-setup_stack (struct intr_frame *if_, int argc, char **argv) {
+setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 	uint8_t *kpage;
 	bool success = false;
 
@@ -599,10 +599,42 @@ setup_stack (struct intr_frame *if_, int argc, char **argv) {
 			palloc_free_page (kpage);
 	}
 	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+	int i;
+	uint8_t *esp = USER_STACK;
 	/* If the page was successfully created, place the
      arguments in the stack. */
 	if (success) {
-		printf("SETUP_STACK: Page created\n");
+		/* Push all the arguments in decreasing order. */
+		for (i = argc - 1; i >= 0; i--) {
+				esp -= strlen (argv[i]) + 1;
+				memcpy (esp, argv[i], strlen (argv[i]) + 1);
+				argv[i] = esp;
+		}
+		/* Align the arguments with the 64-bit system. */
+		i = 0;
+		while((esp % 8) != 0) {
+				esp--;
+				i++;
+		}
+		ASSERT (i < 8);
+		memset (esp, 0, i);
+		/* Push NULL pointer (end of argv). */
+		esp -= sizeof (char*);
+		memset (esp, 0, sizeof (char*));
+		/* Push the address of each argument. */
+		for (i = argc - 1; i >= 0; i--) {
+				esp -= sizeof (char*);
+				memcpy (esp, &argv[i], sizeof (char*));
+		}
+		/* Leave a space for the return address. */
+		esp -= sizeof (void*);
+		memset (esp, 0, sizeof (void*));
+		/* Set registers. */
+		if_->R.rdi = (uint64_t)argc;
+		if_->R.rsi = esp += sizeof (void*);
+		printf("esp: %s\n", esp);
+		for (uint8_t *i = esp; i < USER_STACK; i++)
+			printf("i: 0x%x, val: 0x%x\n", i, *i);
 		ASSERT(0);
 	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
