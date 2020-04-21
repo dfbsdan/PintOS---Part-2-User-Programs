@@ -607,12 +607,12 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 		/* Push all the arguments in decreasing order. */
 		for (i = argc - 1; i >= 0; i--) {
 				esp -= strlen (argv[i]) + 1;
-				memcpy ((uint64_t)esp, argv[i], strlen (argv[i]) + 1);
-				argv[i] = (unsigned char*)esp;
+				memcpy (esp, argv[i], strlen (argv[i]) + 1);
+				argv[i] = (char*)esp;
 		}
 		/* Align the arguments with the 64-bit system. */
 		i = 0;
-		while((esp % 8) != 0) {
+		while(((uint64_t)esp % 8) != 0) {
 				esp--;
 				i++;
 		}
@@ -633,7 +633,7 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 		if_->R.rdi = (uint64_t)argc;
 		if_->R.rsi = (uint64_t)(esp += sizeof (void*));
 		printf("esp: %s\n", esp);
-		for (uint8_t *i = esp; i < USER_STACK; i++)
+		for (uint8_t *i = esp; (uint64_t)i < USER_STACK; i++)
 			printf("i: 0x%hhn, val: 0x%x\n", i, *i);
 		ASSERT(0);
 	}
