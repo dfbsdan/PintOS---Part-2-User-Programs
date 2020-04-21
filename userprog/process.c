@@ -19,6 +19,7 @@
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+#include "devices/timer.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -204,7 +205,7 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	while(1) {}//////////////////////////////////////////////////////////////////////////////////////TEMPORARY
+	timer_msleep (5000);//////////////////////////////////////////////////////////////////////////////////////TEMPORARY
 	return -1;
 }
 
