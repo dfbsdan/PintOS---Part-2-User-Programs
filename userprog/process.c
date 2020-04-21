@@ -14,6 +14,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"/////////////////////////////////////////////////////////////////////////////////////////////
 #include "threads/thread.h"
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
@@ -429,6 +430,8 @@ load (const char *command, struct intr_frame *if_) {
 	if_->rip = ehdr.e_entry;
 	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	/* Pass the arguments. */
+	char **argv;
+	int argc;
 	argc = get_argc (command);
   argv = parse_command (argc, file_name, save_ptr);
 	for (int i = 0; i < argc; i++)
