@@ -311,7 +311,7 @@ struct ELF64_PHDR {
 #define ELF ELF64_hdr
 #define Phdr ELF64_PHDR
 
-static bool setup_stack (struct intr_frame *if_);
+static bool setup_stack (struct intr_frame *if_, int argc, char **argv);
 static int get_argc (const char* command);
 static char **parse_command (int argc, char *file_name, char *save_ptr);
 static bool validate_segment (const struct Phdr *, struct file *);
@@ -328,7 +328,7 @@ load (const char *command, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
-	char *command_copy, *file_name, *save_ptr, **argv;
+	char *command_copy, *file_name, *save_ptr, **argv = NULL;
 	off_t file_ofs;
 	bool success = false;
 	int i, argc;
@@ -340,9 +340,10 @@ load (const char *command, struct intr_frame *if_) {
 	process_activate (thread_current ());
 
 	/* Avoid race conditions by copying the command. */
-	command_copy = (char*)malloc (strlen (command) +1);
-  strlcpy (command_copy, command, strlen (command) +1);
+	command_copy = (char*)malloc (strlen (command) + 1);
+  strlcpy (command_copy, command, strlen (command) + 1);
   file_name = strtok_r (command_copy, " ", &save_ptr);
+	ASSERT (file_name != NULL);
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
@@ -417,29 +418,26 @@ load (const char *command, struct intr_frame *if_) {
 	}
 
 	/* Set up stack. */
-	if (!setup_stack (if_))
-		goto done;
-
-	/* Start address. */
-	if_->rip = ehdr.e_entry;
-
-	/* Pass the arguments. */
 	argc = get_argc (command);
   argv = parse_command (argc, file_name, save_ptr);
 	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	for (int i = 0; i < argc; i++)
 		printf("argv[%d]: %s\n", i, argv[i]);
-	//passArgs();
-	ASSERT(0);
+	if (!setup_stack (if_, argc, argv))
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
-	if (argv != NULL)
-		free (argv);
-	free (command_copy);
+	//if (!setup_stack (if_))
+		goto done;
+
+	/* Start address. */
+	if_->rip = ehdr.e_entry;
 
 	success = true;
 
 done:
 	/* We arrive here whether the load is successful or not. */
+	if (argv != NULL)
+		free (argv);
+	free (command_copy);
 	file_close (file);
 	return success;
 }
@@ -586,9 +584,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 	return true;
 }
 
-/* Create a minimal stack by mapping a zeroed page at the USER_STACK */
+/* Initializes a process' stack. */
 static bool
-setup_stack (struct intr_frame *if_) {
+setup_stack (struct intr_frame *if_, int argc, char **argv) {
 	uint8_t *kpage;
 	bool success = false;
 
@@ -600,6 +598,14 @@ setup_stack (struct intr_frame *if_) {
 		else
 			palloc_free_page (kpage);
 	}
+	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+	/* If the page was successfully created, place the
+     arguments in the stack. */
+	if (success) {
+		printf("SETUP_STACK: Page created\n");
+		ASSERT(0);
+	}
+	////////////////////////////////////////////////////////////////////////////////////////////////////////
 	return success;
 }
 
@@ -677,9 +683,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 /* Create a PAGE of stack at the USER_STACK. Return true on success. */
 static bool
-setup_stack (struct intr_frame *if_) {
+setup_stack (struct intr_frame *if_, int argc, char **argv) {
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
+
+	ASSERT (0);/////////////////////////////////////////////////////////////////////////////////////////REACHED UNTIL PROJ 3
 
 	/* TODO: Map the stack on stack_bottom and claim the page immediately.
 	 * TODO: If success, set the rsp accordingly.
