@@ -634,7 +634,7 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 		if_->R.rsi = (uint64_t)(esp += sizeof (void*));
 		printf("esp: %x\n", esp);
 		for (uint8_t *i = (uint8_t*)(USER_STACK -1); i >= esp; i--)
-			printf("i: 0x%x, val: 0x%x\n", i, *i);
+			printf("i: 0x%x, val: 0x%x, char: %c\n", i, *i, *i);
 		ASSERT(0);
 	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
