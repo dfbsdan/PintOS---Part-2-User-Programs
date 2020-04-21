@@ -421,10 +421,7 @@ load (const char *command, struct intr_frame *if_) {
 	/* Set up stack. */
 	argc = get_argc (command);
   argv = parse_command (argc, file_name, save_ptr);
-	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	if (!setup_stack (if_, argc, argv))
-	////////////////////////////////////////////////////////////////////////////////////////////////////////
-	//if (!setup_stack (if_))
 		goto done;
 
 	/* Start address. */
@@ -598,7 +595,6 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 		else
 			palloc_free_page (kpage);
 	}
-	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	/* If the page was successfully created, place the
 	arguments in the stack. */
 	if (success) {
@@ -631,7 +627,6 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 		esp -= sizeof (void*);
 		memset (esp, 0, sizeof (void*));
 	}
-	////////////////////////////////////////////////////////////////////////////////////////////////////////
 	return success;
 }
 
