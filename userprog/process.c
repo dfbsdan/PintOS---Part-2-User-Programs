@@ -14,7 +14,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
-#include "threads/malloc.h"/////////////////////////////////////////////////////////////////////////////////////////////
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
@@ -312,10 +312,8 @@ struct ELF64_PHDR {
 #define Phdr ELF64_PHDR
 
 static bool setup_stack (struct intr_frame *if_);
-///////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 static int get_argc (const char* command);
 static char **parse_command (int argc, char *file_name, char *save_ptr);
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 static bool validate_segment (const struct Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes,
@@ -330,6 +328,7 @@ load (const char *command, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
+	char *command_copy, *file_name, *save_ptr;
 	off_t file_ofs;
 	bool success = false;
 	int i;
@@ -340,15 +339,10 @@ load (const char *command, struct intr_frame *if_) {
 		goto done;
 	process_activate (thread_current ());
 
-	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	/* Avoid race conditions by copying the command. */
-	printf("LOAD: command '%s'\n", command);
-	char *command_copy, *file_name, *save_ptr;
 	command_copy = (char*)malloc (strlen (command) +1);
   strlcpy (command_copy, command, strlen (command) +1);
   file_name = strtok_r (command_copy, " ", &save_ptr);
-	printf("LOAD: file_name: %s\n", file_name);
-	////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
@@ -436,8 +430,11 @@ load (const char *command, struct intr_frame *if_) {
   argv = parse_command (argc, file_name, save_ptr);
 	for (int i = 0; i < argc; i++)
 		printf("argv[%d]: %s\n", i, argv[i]);
-	ASSERT(0);
 	//passArgs();
+	if (argv != NULL)
+		free(argv);
+	free(command_copy);
+	ASSERT(0);
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
 	success = true;
 
@@ -447,7 +444,6 @@ done:
 	return success;
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 /* Gets the number of arguments in a given COMMAND (including
    the filename). */
 static int
@@ -470,16 +466,18 @@ static char **
 parse_command (int argc, char *file_name, char *save_ptr) {
   char **argv, *arg;
 
+	ASSERT (argc >= 0);
+
+	if (argc == 0) return NULL;
   argv = (char**)malloc (argc * sizeof (char*));
   /* Add all the arguments to ARGV (including FILE_NAME). */
   argv[0] = file_name;
   for (int i = 1; i < argc; i++) {
       arg = strtok_r (NULL, " ", &save_ptr);
       argv[i] = arg;
-    }
+  }
   return argv;
 }
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* Checks whether PHDR describes a valid, loadable segment in
  * FILE and returns true if so, false otherwise. */
