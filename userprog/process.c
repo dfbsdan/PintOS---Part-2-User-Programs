@@ -421,8 +421,6 @@ load (const char *command, struct intr_frame *if_) {
 	argc = get_argc (command);
   argv = parse_command (argc, file_name, save_ptr);
 	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
-	for (int i = 0; i < argc; i++)
-		printf("argv[%d]: %s\n", i, argv[i]);
 	if (!setup_stack (if_, argc, argv))
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//if (!setup_stack (if_))
@@ -587,8 +585,9 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Initializes a process' stack. */
 static bool
 setup_stack (struct intr_frame *if_, const int argc, char **argv) {
-	uint8_t *kpage;
+	uint8_t *kpage, *esp = (uint8_t*)USER_STACK;
 	bool success = false;
+	int i;
 
 	kpage = palloc_get_page (PAL_USER | PAL_ZERO);
 	if (kpage != NULL) {
@@ -599,10 +598,8 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 			palloc_free_page (kpage);
 	}
 	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
-	int i;
-	uint8_t *esp = (uint8_t*)USER_STACK;
 	/* If the page was successfully created, place the
-     arguments in the stack. */
+	arguments in the stack. */
 	if (success) {
 		/* Push all the arguments in decreasing order. */
 		for (i = argc - 1; i >= 0; i--) {
@@ -632,11 +629,6 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 		/* Leave a space for the return address. */
 		esp -= sizeof (void*);
 		memset (esp, 0, sizeof (void*));
-
-		for (uint8_t *i = (uint8_t*)(USER_STACK -1); i >= esp; i--)
-			printf("i: 0x%x, val: 0x%x, char: %c\n", i, *i, *i);
-		printf("esp: %x, rdi: %d, rsi: %llx\n", esp, (int)if_->R.rdi, if_->R.rsi);
-		ASSERT(0);
 	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
 	return success;
