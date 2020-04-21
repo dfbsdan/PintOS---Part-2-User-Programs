@@ -627,7 +627,7 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 				memcpy (esp, &argv[i], sizeof (char*));
 		}
 		/* Set RSI. */
-		if_->R.rsi = (uint64_t)esp);
+		if_->R.rsi = (uint64_t)esp;
 		/* Leave a space for the return address. */
 		esp -= sizeof (void*);
 		memset (esp, 0, sizeof (void*));
