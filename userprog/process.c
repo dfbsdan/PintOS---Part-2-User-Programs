@@ -311,6 +311,10 @@ struct ELF64_PHDR {
 #define Phdr ELF64_PHDR
 
 static bool setup_stack (struct intr_frame *if_);
+///////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+static int get_argc (const char* command);
+static char **parse_command (int argc, char *file_name, char *save_ptr);
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 static bool validate_segment (const struct Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes,
@@ -423,10 +427,15 @@ load (const char *command, struct intr_frame *if_) {
 
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
-
-	/* TODO: Your code goes here.
-	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-
+	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+	/* Pass the arguments. */
+	argc = get_argc (command);
+  argv = parse_command (argc, file_name, save_ptr);
+	for (int i = 0; i < argc; i++)
+		printf("argv[%d]: %s\n", i, argv[i]);
+	ASSERT(0);
+	//passArgs();
+	////////////////////////////////////////////////////////////////////////////////////////////////////////
 	success = true;
 
 done:
@@ -435,6 +444,39 @@ done:
 	return success;
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+/* Gets the number of arguments in a given COMMAND (including
+   the filename). */
+static int
+get_argc (const char* command) {
+	char command_copy[strlen (command) +1], *arg, *save_ptr;
+	int argc = 0;
+
+	strlcpy (command_copy, command, strlen (command) +1);
+	for (arg = strtok_r (command_copy, " ", &save_ptr); arg != NULL;
+			arg = strtok_r (NULL, " ", &save_ptr))
+		argc++;
+	return argc;
+}
+
+/* Makes an argument vector holding the FILE_NAME given in a command
+   as well as all the arguments given. strtok_r must have been called
+   once in the original command buffer so that SAVE_PTR will be used
+   now as an argument to strtok_r. */
+static char **
+parse_command (int argc, char *file_name, char *save_ptr) {
+  char **argv, *arg;
+
+  argv = (char**)malloc (argc * sizeof (char*));
+  /* Add all the arguments to ARGV (including FILE_NAME). */
+  argv[0] = file_name;
+  for (int i = 1; i < argc; i++) {
+      arg = strtok_r (NULL, " ", &save_ptr);
+      argv[i] = arg;
+    }
+  return argv;
+}
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* Checks whether PHDR describes a valid, loadable segment in
  * FILE and returns true if so, false otherwise. */

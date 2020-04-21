@@ -42,5 +42,6 @@ void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 	printf ("system call!\n");
+	ASSERT(0);////////////////////////////////////////////////////////////////////////////////////////////////TEMPORARY
 	thread_exit ();
 }
