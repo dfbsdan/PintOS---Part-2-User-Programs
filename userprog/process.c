@@ -328,10 +328,10 @@ load (const char *command, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
-	char *command_copy, *file_name, *save_ptr;
+	char *command_copy, *file_name, *save_ptr, **argv;
 	off_t file_ofs;
 	bool success = false;
-	int i;
+	int i, argc;
 
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
@@ -422,20 +422,20 @@ load (const char *command, struct intr_frame *if_) {
 
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
-	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+
 	/* Pass the arguments. */
-	char **argv;
-	int argc;
 	argc = get_argc (command);
   argv = parse_command (argc, file_name, save_ptr);
+	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	for (int i = 0; i < argc; i++)
 		printf("argv[%d]: %s\n", i, argv[i]);
 	//passArgs();
-	if (argv != NULL)
-		free(argv);
-	free(command_copy);
 	ASSERT(0);
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
+	if (argv != NULL)
+		free (argv);
+	free (command_copy);
+
 	success = true;
 
 done:
