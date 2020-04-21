@@ -600,15 +600,15 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 	}
 	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	int i;
-	uint8_t *esp = USER_STACK;
+	uint8_t *esp = (uint8_t*)USER_STACK;
 	/* If the page was successfully created, place the
      arguments in the stack. */
 	if (success) {
 		/* Push all the arguments in decreasing order. */
 		for (i = argc - 1; i >= 0; i--) {
 				esp -= strlen (argv[i]) + 1;
-				memcpy (esp, argv[i], strlen (argv[i]) + 1);
-				argv[i] = esp;
+				memcpy ((uint64_t)esp, argv[i], strlen (argv[i]) + 1);
+				argv[i] = (unsigned char*)esp;
 		}
 		/* Align the arguments with the 64-bit system. */
 		i = 0;
@@ -631,10 +631,10 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 		memset (esp, 0, sizeof (void*));
 		/* Set registers. */
 		if_->R.rdi = (uint64_t)argc;
-		if_->R.rsi = esp += sizeof (void*);
+		if_->R.rsi = (uint64_t)(esp += sizeof (void*));
 		printf("esp: %s\n", esp);
 		for (uint8_t *i = esp; i < USER_STACK; i++)
-			printf("i: 0x%x, val: 0x%x\n", i, *i);
+			printf("i: 0x%hhn, val: 0x%x\n", i, *i);
 		ASSERT(0);
 	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////////
