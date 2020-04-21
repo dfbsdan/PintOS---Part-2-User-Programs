@@ -316,12 +316,12 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		uint32_t read_bytes, uint32_t zero_bytes,
 		bool writable);
 
-/* Loads an ELF executable from FILE_NAME into the current thread.
+/* Loads an ELF executable from COMMAND into the current thread.
  * Stores the executable's entry point into *RIP
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
 static bool
-load (const char *file_name, struct intr_frame *if_) {
+load (const char *command, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -335,9 +335,18 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 	process_activate (thread_current ());
 
+	/////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+	/* Avoid race conditions by copying the command. */
+	printf("LOAD: command '%s'\n", command);
+	char *command_copy, *file_name, *save_ptr;
+	command_copy = (char*)malloc (strlen (command) +1);
+  strlcpy (command_copy, command, strlen (command) +1);
+  file_name = strtok_r (command_copy, " ", &save_ptr);
+	printf("LOAD: file_name: %s\n", file_name);
+	////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 	/* Open executable file. */
 	file = filesys_open (file_name);
-	printf("LOAD: opening '%s', success? %d\n", file_name, file != NULL);/////////////////////////////
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
