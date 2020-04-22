@@ -28,7 +28,7 @@ static void process_cleanup (void);
 static bool load (const char *command, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
-static struct lock executable_lock;
+
 /* General process initializer for initd and other process. */
 static void
 process_init (void) {
@@ -218,8 +218,6 @@ process_exit (void) {
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
-	file_close(curr->curr_executable);
-	printf ("%s: exit(%d)\n", t->name, curr->exit_status);
 	process_cleanup ();
 }
 
@@ -354,8 +352,7 @@ load (const char *command, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
-	t->curr_executable = file; /*assign executable file*/
-	file_deny_write(t->curr_executable);/*deny write*/
+
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
 			|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
