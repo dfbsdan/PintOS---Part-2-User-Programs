@@ -138,7 +138,7 @@ syscall_halt (void) {
 static void
 syscall_exit (int status) {
 	/////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
-	thread_current ()->exitStatus = status;
+	thread_current ()->exit_status = status;
 	thread_exit ();
 	/* Return exit status to waiting parent. */
 
@@ -185,7 +185,7 @@ syscall_exec (const char *file UNUSED) {
  * exit status, or learn that the child was terminated by the kernel.
  * wait must fail and return -1 immediately if any of the following
  * conditions is true:
- * pid does not refer to a direct child of the calling process. pid is a
+ * -pid does not refer to a direct child of the calling process. pid is a
  * direct child of the calling process if and only if the calling process
  * received pid as a return value from a successful call to exec. Note
  * that children are not inherited: if A spawns child B and B spawns child
