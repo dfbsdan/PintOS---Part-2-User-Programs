@@ -111,8 +111,6 @@ struct thread {
 	struct list locks_held;							/* List of locks being held by the
 																				 thread. */
 
-	struct file *curr_executable; /*pointer to current file*/
-	int exit_status;
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
