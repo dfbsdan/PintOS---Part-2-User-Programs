@@ -213,11 +213,13 @@ process_wait (tid_t child_tid UNUSED) {
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
-	/* TODO: Your code goes here.
-	 * TODO: Implement process termination message (see
-	 * TODO: project2/process_termination.html).
-	 * TODO: We recommend you to implement process resource cleanup here. */
-
+	if (thread_is_user ()) {
+		ASSERT (curr->executable);
+		file_close(curr->executable);
+		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+	}
+	else
+		ASSERT (curr->executable == NULL); //Debugging purposes
 	process_cleanup ();
 }
 
@@ -352,6 +354,8 @@ load (const char *command, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	t->executable = file; /* Assign executable file. */
+	file_deny_write(t->executable); /* Deny write. */
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -434,7 +438,6 @@ done:
 	if (argv != NULL)
 		free (argv);
 	free (command_copy);
-	file_close (file);
 	return success;
 }
 

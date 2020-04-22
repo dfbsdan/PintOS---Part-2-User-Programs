@@ -320,6 +320,15 @@ thread_name (void) {
 	return thread_current ()->name;
 }
 
+/* Returns True if the current thread is an user thread, false
+	 otherwise. */
+bool
+thread_is_user (void)
+{
+	struct thread *curr = thread_current ();
+	return curr != initial_thread && curr != idle_thread;
+}
+
 /* Returns the running thread.
    This is running_thread() plus a couple of sanity checks.
    See the big comment at the top of thread.h for details. */
@@ -624,6 +633,8 @@ init_thread (struct thread *t, const char *name, int priority,
 	t->priority = (thread_mlfqs)? mlfqs_calculate_priority(t): priority;
 	t->original_priority = priority;
 	t->waiting_lock = NULL;
+	t->executable = NULL;
+	t->exit_status = 0;
 	list_init (&t->locks_held);
 	list_push_back (&all_list, &t->all_elem);
 }
