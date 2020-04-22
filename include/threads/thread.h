@@ -114,6 +114,7 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
+	int exitStatus;
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
@@ -146,6 +147,7 @@ void thread_sleep (void);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
+bool thread_isUser (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);

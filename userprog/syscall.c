@@ -6,6 +6,7 @@
 #include "threads/loader.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
+#include "threads/init.h"
 #include "intrinsic.h"
 
 void syscall_entry (void);
@@ -127,7 +128,7 @@ syscall_handler (struct intr_frame *f) {
  * etc. */
 static void
 syscall_halt (void) {
-	ASSERT (0);
+	power_off ();
 }
 
 /* Terminates the current user program, returning status to the kernel.
@@ -135,9 +136,13 @@ syscall_halt (void) {
  * that will be returned. Conventionally, a status of 0 indicates success
  * and nonzero values indicate errors. */
 static void
-syscall_exit (int status UNUSED) {
-	ASSERT (0);
-	//printf ("%s: exit(%d)\n", ...);
+syscall_exit (int status) {
+	/////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+	thread_current ()->exitStatus = status;
+	thread_exit ();
+	/* Return exit status to waiting parent. */
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 }
 
 /* Create new process which is the clone of current process with the name
