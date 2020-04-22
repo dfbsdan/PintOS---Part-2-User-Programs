@@ -8,6 +8,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/vaddr.h"
+#include "filesys/filesys.h"
 #include "intrinsic.h"
 
 void syscall_entry (void);
