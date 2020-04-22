@@ -26,9 +26,9 @@ void syscall_handler (struct intr_frame *);
 
 static void syscall_halt (void);
 static void syscall_exit (int status);
-static pid_t syscall_fork (const char *thread_name);
+static int syscall_fork (const char *thread_name);
 static int syscall_exec (const char *file);
-static int syscall_wait (pid_t pid);
+static int syscall_wait (int pid);
 static bool syscall_create (const char *file, unsigned initial_size);
 static bool syscall_remove (const char *file);
 static int syscall_open (const char *file);
@@ -71,7 +71,7 @@ syscall_handler (struct intr_frame *f) {
 			f->R.rax = (uint64_t)syscall_exec ((const char*)f->R.rdi);
 			break;
 		case SYS_WAIT:
-			f->R.rax = (uint64_t)syscall_wait ((pid_t)f->R.rdi);
+			f->R.rax = (uint64_t)syscall_wait ((int)f->R.rdi);
 			break;
 		case SYS_CREATE:
 			f->R.rax = (uint64_t)syscall_create ((const char*)f->R.rdi, (unsigned)f->R.rsi);
@@ -130,85 +130,85 @@ syscall_halt (void) {
 
 /* Terminate this process. */
 static void
-syscall_exit (int status) {
+syscall_exit (int status UNUSED) {
 	ASSERT (0);
 	//printf ("%s: exit(%d)\n", ...);
 }
 
 /* Clone current process. */
-static pid_t
-syscall_fork (const char *thread_name) {
+static int
+syscall_fork (const char *thread_name UNUSED) {
 	ASSERT (0);
 }
 
 /* Switch current process. */
 static int
-syscall_exec (const char *file) {
+syscall_exec (const char *file UNUSED) {
 	ASSERT (0);
 }
 
 /* Wait for a child process to die. */
 static int
-syscall_wait (pid_t pid) {
+syscall_wait (int pid UNUSED) {
 	ASSERT (0);
 }
 
 /* Create a file. */
 static bool
-syscall_create (const char *file, unsigned initial_size) {
+syscall_create (const char *file UNUSED, unsigned initial_size UNUSED) {
 	ASSERT (0);
 }
 
 /* Delete a file. */
 static bool
-syscall_remove (const char *file) {
+syscall_remove (const char *file UNUSED) {
 	ASSERT (0);
 }
 
 /* Open a file. */
 static int
-syscall_open (const char *file) {
+syscall_open (const char *file UNUSED) {
 	ASSERT (0);
 }
 
 /* Obtain a file's size. */
 static int
-syscall_filesize (int fd) {
+syscall_filesize (int fd UNUSED) {
 	ASSERT (0);
 }
 
 /* Read from a file. */
 static int
-syscall_read (int fd, void *buffer, unsigned length) {
+syscall_read (int fd UNUSED, void *buffer UNUSED, unsigned length UNUSED) {
 	ASSERT (0);
 }
 
 /* Write to a file. */
 static int
-syscall_write (int fd, const void *buffer, unsigned length) {
+syscall_write (int fd UNUSED, const void *buffer UNUSED, unsigned length UNUSED) {
 	ASSERT (0);
 }
 
 /* Change position in a file. */
 static void
-syscall_seek (int fd, unsigned position) {
+syscall_seek (int fd UNUSED, unsigned position UNUSED) {
 	ASSERT (0);
 }
 
 /* Report current position in a file. */
 static unsigned
-syscall_tell (int fd) {
+syscall_tell (int fd UNUSED) {
 	ASSERT (0);
 }
 
 /* Close a file. */
 static void
-syscall_close (int fd) {
+syscall_close (int fd UNUSED) {
 	ASSERT (0);
 }
 
 /* Duplicate the file descriptor */
 static int
-syscall_dup2 (int oldfd, int newfd) {
+syscall_dup2 (int oldfd UNUSED, int newfd UNUSED) {
 	ASSERT (0);
 }
