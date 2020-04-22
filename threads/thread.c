@@ -320,7 +320,7 @@ thread_name (void) {
 	return thread_current ()->name;
 }
 
-int
+bool
 thread_isUser (void)
 {
 	struct thread *curr = thread_current ();
