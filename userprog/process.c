@@ -219,6 +219,7 @@ process_wait (tid_t child_tid) {
 	/* Clean up. */
 	list_remove (&child_st->elem);
 	free (child_st);
+	printf("Waiting successful\n");/////////////////////////////////////////////////////////////////TEMPORAL FOR TESTING
 	return exit_status;
 }
 
