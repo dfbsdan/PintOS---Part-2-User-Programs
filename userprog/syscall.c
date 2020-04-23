@@ -284,7 +284,7 @@ syscall_read (int fd UNUSED, void *buffer UNUSED, unsigned length UNUSED) {
 * readers and our grading scripts. */
 static int
 syscall_write (int fd UNUSED, const void *buffer UNUSED, unsigned length UNUSED) {
-	ASSERT (0);
+	syscall_exit (-1); ////////////////////////////////////////////////////////////////////////////////////////////TEMPORAL USAGE FOR TESTING
 }
 
 /* Changes the next byte to be read or written in open file fd to

@@ -207,6 +207,7 @@ process_wait (tid_t child_tid) {
 	struct terminated_child_st *child_st;
 	int exit_status;
 
+	////////////////////////////////////////////////////////////////////////////////////////////////////TURN INTERRUPTS OFF?
 	if (!terminated_child (child_tid) && !active_child (child_tid))
 		return -1;
 	while (active_child (child_tid) && !terminated_child (child_tid))
@@ -271,6 +272,7 @@ process_exit (void) {
 	struct thread *curr = thread_current ();
 	struct terminated_child_st *child_st;
 
+	////////////////////////////////////////////////////////////////////////////////////////////////////TURN INTERRUPTS OFF?
 	if (thread_is_user ()) {
 		ASSERT (curr->executable);
 		file_close(curr->executable);
