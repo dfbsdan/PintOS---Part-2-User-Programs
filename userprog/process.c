@@ -216,7 +216,7 @@ process_wait (tid_t child_tid) {
 	ASSERT (child_st);
 	exit_status = child_st->exit_status;
 	/* Clean up. */
-	list_remove (child_st->elem);
+	list_remove (&child_st->elem);
 	free (child_st);
 	return exit_status;
 }
@@ -281,7 +281,7 @@ process_exit (void) {
 		ASSERT (child_st);
 		child_st->pid = curr->tid;
 		child_st->exit_status = curr->exit_status;
-		list_insert (&child_st->elem, &curr->parent->terminated_children_st);
+		list_push_back (&curr->parent->terminated_children_st, &child_st->elem);
 		/* Print exit status. */
 		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
 	}

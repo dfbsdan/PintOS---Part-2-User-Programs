@@ -642,7 +642,7 @@ init_thread (struct thread *t, const char *name, int priority,
 	list_init (&t->terminated_children_st);
 	if (t != initial_thread) {
 		t->parent = thread_current ();
-		list_insert (&t->active_child_elem, &t->parent->active_children);
+		list_push_back (&t->parent->active_children, &t->active_child_elem);
 	}
 	else
 		t->parent = NULL;
