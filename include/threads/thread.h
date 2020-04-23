@@ -154,9 +154,7 @@ void thread_sleep (void);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
-#ifdef USERPROG
 bool thread_is_user (void);
-#endif
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);

@@ -7,9 +7,7 @@
 /* Structure that holds the information of a terminated child process.
    This structure is created when such termination occurs and then added
    to its parent process' terminated_children_st list, so that the child
-   information (id and exit status) can be retrieved later using wait().
-   The wait() function must be called always so that the structure memory
-   is freed. */
+   information (id and exit status) can be retrieved later using wait(). */
 struct terminated_child_st {
   tid_t pid;
   int exit_status;

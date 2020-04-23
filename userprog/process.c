@@ -276,14 +276,16 @@ process_exit (void) {
 	if (thread_is_user ()) {
 		ASSERT (curr->executable);
 		file_close(curr->executable);
-		/* Remove from parent's active_children list. */
-		list_remove (&curr->active_child_elem);
-		/* Report exit status to parent. */
-		child_st = (struct terminated_child_st*)malloc (sizeof (struct terminated_child_st));
-		ASSERT (child_st);
-		child_st->pid = curr->tid;
-		child_st->exit_status = curr->exit_status;
-		list_push_back (&curr->parent->terminated_children_st, &child_st->elem);
+		if (curr->parent) {
+			/* Remove from parent's active_children list. */
+			list_remove (&curr->active_child_elem);
+			/* Report exit status to parent. */
+			child_st = (struct terminated_child_st*)malloc (sizeof (struct terminated_child_st));
+			ASSERT (child_st);
+			child_st->pid = curr->tid;
+			child_st->exit_status = curr->exit_status;
+			list_push_back (&curr->parent->terminated_children_st, &child_st->elem);
+		}
 		/* Print exit status. */
 		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
 	}
@@ -295,11 +297,30 @@ process_exit (void) {
 /* Free the current process's resources. */
 static void
 process_cleanup (void) {
-	struct thread *curr = thread_current ();
+	struct thread *child, *curr = thread_current ();
+	struct terminated_child_st *child_st;
+	struct list_elem *child_elem;
 
 #ifdef VM
 	supplemental_page_table_kill (&curr->spt);
 #endif
+
+	/* Destroy unfreed information of finished child processes (this occurs
+	 * when wait() is not called on a pid). */
+	while (!list_empty (&curr->terminated_children_st)) {
+		child_elem = list_pop_front (&curr->terminated_children_st);
+		child_st = list_entry (child_elem, struct terminated_child_st, elem);
+		free (child_st);
+	}
+	/* Report termination to children. */
+	if (!list_empty (&curr->active_children)) {
+		for (child_elem = list_front (&curr->active_children);
+				child_elem != list_end (&curr->active_children);
+				child_elem = list_next (child_elem)) {
+			child = list_entry (child_elem, struct thread, active_child_elem);
+			child->parent = NULL;
+		}
+	}
 
 	uint64_t *pml4;
 	/* Destroy the current process's page directory and switch back

@@ -320,16 +320,14 @@ thread_name (void) {
 	return thread_current ()->name;
 }
 
-#ifdef USERPROG
 /* Returns True if the current thread is an user thread, false
 	 otherwise. */
 bool
 thread_is_user (void)
 {
 	struct thread *curr = thread_current ();
-	return curr != initial_thread && curr != idle_thread && curr->parent;
+	return curr != initial_thread && curr != idle_thread;
 }
-#endif
 
 /* Returns the running thread.
    This is running_thread() plus a couple of sanity checks.
