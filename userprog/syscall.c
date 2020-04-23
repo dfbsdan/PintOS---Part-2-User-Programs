@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
+#include "userprog/process.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/vaddr.h"
@@ -65,6 +66,7 @@ syscall_init (void) {
 void
 syscall_handler (struct intr_frame *f) {
 	/////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+	ASSERT (thread_is_user ());
 	switch (f->R.rax) {
 		case SYS_HALT:
 			syscall_halt ();
@@ -144,12 +146,8 @@ syscall_halt (void) {
  * and nonzero values indicate errors. */
 static void
 syscall_exit (int status) {
-	/////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	thread_current ()->exit_status = status;
 	thread_exit ();
-	/* Return exit status to waiting parent. */
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 }
 
 /* Create new process which is the clone of current process with the name
@@ -216,8 +214,8 @@ syscall_exec (const char *file UNUSED) {
  * Implementing this system call requires considerably more work than any
  * of the rest. */
 static int
-syscall_wait (int pid UNUSED) {
-	ASSERT (0);
+syscall_wait (int pid) {
+	return process_wait ((tid_t)pid);
 }
 
 /* Creates a new file called file initially initial_size bytes in size.

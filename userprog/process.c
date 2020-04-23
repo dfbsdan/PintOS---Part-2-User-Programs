@@ -24,6 +24,8 @@
 #include "vm/vm.h"
 #endif
 
+static struct terminated_child_st *terminated_child (tid_t child_tid);
+static bool active_child (tid_t child_tid);
 static void process_cleanup (void);
 static bool load (const char *command, struct intr_frame *if_);
 static void initd (void *f_name);
@@ -201,21 +203,86 @@ process_exec (void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) {
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
-	timer_msleep (5000);//////////////////////////////////////////////////////////////////////////////////////TEMPORARY
-	return -1;
+process_wait (tid_t child_tid) {
+	struct terminated_child_st *child_st;
+	int exit_status;
+
+	if (!terminated_child (child_tid) && !active_child (child_tid))
+		return -1;
+	while (active_child (child_tid) && !terminated_child (child_tid))
+		thread_yield (); //Wait for child's termination
+	/* Get child's exit status. */
+	child_st = terminated_child (child_tid);
+	ASSERT (child_st);
+	exit_status = child_st->exit_status;
+	/* Clean up. */
+	list_remove (child_st->elem);
+	free (child_st);
+	return exit_status;
+}
+
+/* Given a CHILD_TID tid, this function tries to find if such tid
+ * corresponds to a current thread's terminated child's tid by looking at
+ * its terminated_children_st list. If such tid is found, the corresponding
+ * terminated_child_st structure (created on its termination) is returned
+ * as a pointer.
+ * Returns NULL if such element is not found. */
+static struct terminated_child_st *
+terminated_child (tid_t child_tid) {
+	struct thread *curr = thread_current ();
+	struct list_elem *child_st_elem;
+	struct terminated_child_st *child_st;
+
+	if (!list_empty (&curr->terminated_children_st)) {
+		for (child_st_elem = list_front (&curr->terminated_children_st);
+				child_st_elem != list_end (&curr->terminated_children_st);
+				child_st_elem = list_next (child_st_elem)) {
+			child_st = list_entry (child_st_elem, struct terminated_child_st, elem);
+			if (child_st->pid == child_tid)
+				return child_st;
+		}
+	}
+	return NULL;
+}
+
+/* Given a CHILD_TID tid, this function tries to find if such tid
+ * corresponds to a current thread's active child's tid by looking at
+ * its active_children list. If such child is found returns TRUE, otherwise
+ * FALSE. */
+static bool active_child (tid_t child_tid) {
+	struct thread *child, *curr = thread_current ();
+	struct list_elem *child_elem;
+
+	if (!list_empty (&curr->active_children)) {
+		for (child_elem = list_front (&curr->active_children);
+				child_elem != list_end (&curr->active_children);
+				child_elem = list_next (child_elem)) {
+			child = list_entry (child_elem, struct thread, active_child_elem);
+			if (child->tid == child_tid)
+				return true;
+		}
+	}
+	return false;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
+	struct terminated_child_st *child_st;
+
 	if (thread_is_user ()) {
 		ASSERT (curr->executable);
 		file_close(curr->executable);
+		/* Remove from parent's active_children list. */
+		list_remove (&curr->active_child_elem);
+		/* Report exit status to parent. */
+		child_st = (struct terminated_child_st*)malloc (sizeof (struct terminated_child_st));
+		ASSERT (child_st);
+		child_st->pid = curr->tid;
+		child_st->exit_status = curr->exit_status;
+		list_insert (&child_st->elem, &curr->parent->terminated_children_st);
+		/* Print exit status. */
 		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
 	}
 	else
@@ -344,6 +411,7 @@ load (const char *command, struct intr_frame *if_) {
 
 	/* Avoid race conditions by copying the command. */
 	command_copy = (char*)malloc (strlen (command) + 1);
+	ASSERT (command_copy);
   strlcpy (command_copy, command, strlen (command) + 1);
   file_name = strtok_r (command_copy, " ", &save_ptr);
 	ASSERT (file_name != NULL);
@@ -467,6 +535,7 @@ parse_command (int argc, char *file_name, char *save_ptr) {
 
 	if (argc == 0) return NULL;
   argv = (char**)malloc (argc * sizeof (char*));
+	ASSERT (argv);
   /* Add all the arguments to ARGV (including FILE_NAME). */
   argv[0] = file_name;
   for (int i = 1; i < argc; i++) {

@@ -114,7 +114,13 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
-	struct file *executable; /*pointer to current file*/
+	struct file *executable; 						/* Pointer to current file. */
+	struct list active_children;				/* Holds pointers to active children. */
+	struct list_elem active_child_elem;	/* active_children list element. */
+	struct list terminated_children_st;	/* Holds the tids and exit statuses
+	 																			 of terminated children. */
+	struct thread *parent;
+	/* Owned by userprog/process.c and userprog/syscall.c. */
 	int exit_status;
 #endif
 #ifdef VM
@@ -148,7 +154,9 @@ void thread_sleep (void);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
+#ifdef USERPROG
 bool thread_is_user (void);
+#endif
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
