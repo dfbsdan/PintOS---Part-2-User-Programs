@@ -312,7 +312,7 @@ process_cleanup (void) {
 	struct terminated_child_st *child_st;
 	struct list_elem *child_elem;
 	enum intr_level old_level;
-	struct file_descriptor *fd_table, *fd;
+	struct file_descriptor *fd;
 
 #ifdef VM
 	supplemental_page_table_kill (&curr->spt);
@@ -338,15 +338,14 @@ process_cleanup (void) {
 	intr_set_level (old_level);
 	/* Destroy file descriptor table. */
 	if (thread_is_user ()) {
-		fd_table = &curr->fd_t.table;
 		for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
-			fd = &fd_table[i];
+			fd = &curr->fd_t.table[i];
 			if (fd->file) {
 				ASSERT (fd->fd_st == FD_OPEN);
 				file_close (fd->file);
 			}
 		}
-		free (fd_table);
+		free (curr->fd_t.table);
 	}
 
 	uint64_t *pml4;
