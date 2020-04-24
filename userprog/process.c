@@ -158,7 +158,7 @@ __do_fork (void *aux) {
 	if (succ)
 		do_iret (&if_);
 error:
-	thread_exit ();
+	thread_exit (-1);
 }
 
 /* Switch the current execution context to the f_name.
@@ -207,7 +207,6 @@ process_wait (tid_t child_tid) {
 	struct terminated_child_st *child_st;
 	int exit_status;
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////TURN INTERRUPTS OFF?
 	if (!terminated_child (child_tid) && !active_child (child_tid))
 		return -1;
 	while (active_child (child_tid) && !terminated_child (child_tid))
@@ -233,16 +232,21 @@ terminated_child (tid_t child_tid) {
 	struct thread *curr = thread_current ();
 	struct list_elem *child_st_elem;
 	struct terminated_child_st *child_st;
+	enum intr_level old_level;
 
+	old_level = intr_disable ();
 	if (!list_empty (&curr->terminated_children_st)) {
 		for (child_st_elem = list_front (&curr->terminated_children_st);
 				child_st_elem != list_end (&curr->terminated_children_st);
 				child_st_elem = list_next (child_st_elem)) {
 			child_st = list_entry (child_st_elem, struct terminated_child_st, elem);
-			if (child_st->pid == child_tid)
+			if (child_st->pid == child_tid) {
+				intr_set_level (old_level);
 				return child_st;
+			}
 		}
 	}
+	intr_set_level (old_level);
 	return NULL;
 }
 
@@ -253,26 +257,33 @@ terminated_child (tid_t child_tid) {
 static bool active_child (tid_t child_tid) {
 	struct thread *child, *curr = thread_current ();
 	struct list_elem *child_elem;
+	enum intr_level old_level;
 
+	old_level = intr_disable ();
 	if (!list_empty (&curr->active_children)) {
 		for (child_elem = list_front (&curr->active_children);
 				child_elem != list_end (&curr->active_children);
 				child_elem = list_next (child_elem)) {
 			child = list_entry (child_elem, struct thread, active_child_elem);
-			if (child->tid == child_tid)
+			if (child->tid == child_tid) {
+				intr_set_level (old_level);
 				return true;
+			}
 		}
 	}
+	intr_set_level (old_level);
 	return false;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void
-process_exit (void) {
+process_exit (int status) {
 	struct thread *curr = thread_current ();
 	struct terminated_child_st *child_st;
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////TURN INTERRUPTS OFF?
+	ASSERT (intr_get_level () == INTR_OFF);
+
+	curr->exit_status = status;
 	if (thread_is_user ()) {
 		ASSERT (curr->executable);
 		file_close(curr->executable);
@@ -300,6 +311,8 @@ process_cleanup (void) {
 	struct thread *child, *curr = thread_current ();
 	struct terminated_child_st *child_st;
 	struct list_elem *child_elem;
+
+	ASSERT (intr_get_level () == INTR_OFF);
 
 #ifdef VM
 	supplemental_page_table_kill (&curr->spt);

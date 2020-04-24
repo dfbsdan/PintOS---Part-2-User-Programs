@@ -354,17 +354,18 @@ thread_tid (void) {
 }
 
 /* Deschedules the current thread and destroys it.  Never
-   returns to the caller. */
+   returns to the caller. STATUS corresponds to the exit status of the
+	 terminating thread, this is used in userprog/process.c. */
 void
-thread_exit (void) {
+thread_exit (int status) {
 	ASSERT (!intr_context ());
 
+	intr_disable ();
 #ifdef USERPROG
-	process_exit ();
+	process_exit (status);
 #endif
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
-	intr_disable ();
 	list_remove (&thread_current ()->all_elem);
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();

@@ -156,7 +156,7 @@ tid_t thread_tid (void);
 const char *thread_name (void);
 bool thread_is_user (void);
 
-void thread_exit (void) NO_RETURN;
+void thread_exit (int status) NO_RETURN;
 void thread_yield (void);
 
 int thread_get_priority (void);
