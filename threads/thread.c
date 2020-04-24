@@ -643,6 +643,7 @@ init_thread (struct thread *t, const char *name, int priority,
 	t->executable = NULL;
 	list_init (&t->active_children);
 	list_init (&t->terminated_children_st);
+	t->fd_t.table = NULL;
 	if (t != initial_thread) {
 		t->parent = thread_current ();
 		list_push_back (&t->parent->active_children, &t->active_child_elem);
