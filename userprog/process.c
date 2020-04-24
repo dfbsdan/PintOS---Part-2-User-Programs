@@ -304,12 +304,19 @@ process_exit (int status) {
 		/* Destroy file descriptor table. */
 		for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
 			fd = &curr->fd_t.table[i];
-			if (fd->fd_st == FD_OPEN) {
-				if (fd->file == NULL) {
-					ASSERT (i <= 2);
-					continue;
-				}
-				file_close (fd->file);
+			switch (fd->fd_st) {
+				case FD_OPEN:
+					if (fd->file == NULL) {
+						ASSERT (i <= 2);
+						break;
+					}
+					file_close (fd->file);
+					break;
+				case FD_CLOSE:
+					ASSERT (fd->file == NULL);
+					break;
+				default:
+					ASSERT (0);
 			}
 		}
 		free (curr->fd_t.table);
