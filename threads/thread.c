@@ -11,6 +11,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/fpa.h"
+#include "threads/malloc.h"
 #include "intrinsic.h"
 #include "devices/timer.h"
 #ifdef USERPROG
@@ -87,6 +88,9 @@ static void schedule (void);
 static tid_t allocate_tid (void);
 static void wake_up_threads (void);
 static struct thread *get_max_donor (void);
+#ifdef USERPROG
+static void init_fd_table (struct fd_table *fd_t);
+#endif
 static int mlfqs_calculate_priority (struct thread *t);
 static void mlfqs_update_priorities (void);
 static void mlfqs_update_recent_cpu (void);
@@ -646,9 +650,29 @@ init_thread (struct thread *t, const char *name, int priority,
 	else
 		t->parent = NULL;
 	t->exit_status = 0;
+	init_fd_table (&t->fd_t);
 #endif
 	list_push_back (&all_list, &t->all_elem);
 }
+
+#ifdef USERPROG
+/* Initializes the file descriptor table of a process. */
+static void
+init_fd_table (struct fd_table *fd_t) {
+	int i;
+
+	ASSERT (fd_t);
+
+	fd_t->size = 3; /* Default: 0: stdin, 1: stdout, 2: stderr. */
+	fd_t->max_open_fd = 2; /* I.e. stderr. */
+	fd_t->table = (struct file_descriptor*)calloc (MAX_FD + 1, sizeof (struct file_descriptor));
+	ASSERT (fd->table);
+	for (i = 0; i <= 2; i++)
+		fd_t->table[i].fd_st = FD_OPEN;
+	for (i = 3; i <= MAX_FD; i++)
+		fd_t->table[i].fd_st = FD_CLOSE;
+}
+#endif
 
 /* Calculates and returns the new priority for a given THREAD (mlfqs). */
 static int

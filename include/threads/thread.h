@@ -9,6 +9,39 @@
 #include "vm/vm.h"
 #endif
 
+#ifdef USERPROG
+
+#define MAX_FD 127 /* Max allowed file descriptor per process. */
+
+/* Allowed states of a file descriptor. */
+enum fd_status {FD_CLOSE, FD_OPEN};
+
+/* File descriptor structure. */
+struct file_descriptor {
+	/* Status of the file descriptor. */
+	enum fd_status fd_st;
+	/* File associated with the fd. If the fd is open, this has to be a
+		 valid file pointer unless its associated index (see struct fd_table's
+		 table) is 0, 1 or 2, which by default refer to stdin, stdout and
+		 stderr, respectively. If the fd is closed, FILE is always NULL */
+	struct file *file;
+};
+
+/* Structure holding the file descriptors of a process. */
+struct fd_table {
+	/* Keeps track of the number of opened file descriptors. */
+	size_t size;
+	/* Keeps track of the greatest opened fd of the process. */
+	int max_open_fd;
+	/* File descriptor table of a process.
+		 Each index corresponds to a file descriptor in the range [0, MAX_FD],
+		 inclusive.
+		 By design, the 0th, 1th and 2nd file descriptors can be the only ones
+		 in open state with a NULL associated file pointer. */
+	struct file_descriptor *table;
+};
+#endif
+
 /* States in a thread's life cycle. */
 enum thread_status {
 	THREAD_RUNNING,     /* Running thread. */
@@ -121,6 +154,7 @@ struct thread {
 	 																			 of terminated children. */
 	struct thread *parent;
 	/* Owned by userprog/process.c and userprog/syscall.c. */
+	struct fd_table fd_t;								/* Process' file descriptor table. */
 	int exit_status;
 #endif
 #ifdef VM
