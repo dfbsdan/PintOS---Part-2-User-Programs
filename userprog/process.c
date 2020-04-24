@@ -338,7 +338,7 @@ process_cleanup (void) {
 	intr_set_level (old_level);
 	/* Destroy file descriptor table. */
 	fd_table = &curr->fd_t.table;
-	for (int i = 0; i <= fd_table->max_open_fd; i++) {
+	for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
 		fd = &fd_table[i];
 		if (fd->file) {
 			ASSERT (fd->fd_st == FD_OPEN);
