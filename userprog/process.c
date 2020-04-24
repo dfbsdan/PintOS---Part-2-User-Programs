@@ -339,6 +339,7 @@ process_cleanup (void) {
 	/* Destroy file descriptor table. */
 	if (thread_is_user ()) {
 		ASSERT (curr->fd_t.table);
+		printf("Thread: '%s' destroying fdt of size: %d\n", curr->name, curr->fd_t.max_open_fd);
 		for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
 			fd = &curr->fd_t.table[i];
 			if (fd->file) {
