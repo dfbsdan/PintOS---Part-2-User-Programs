@@ -666,7 +666,7 @@ init_fd_table (struct fd_table *fd_t) {
 	fd_t->size = 3; /* Default: 0: stdin, 1: stdout, 2: stderr. */
 	fd_t->max_open_fd = 2; /* I.e. stderr. */
 	fd_t->table = (struct file_descriptor*)calloc (MAX_FD + 1, sizeof (struct file_descriptor));
-	ASSERT (fd->table);
+	ASSERT (fd_t->table);
 	for (i = 0; i <= 2; i++)
 		fd_t->table[i].fd_st = FD_OPEN;
 	for (i = 3; i <= MAX_FD; i++)
