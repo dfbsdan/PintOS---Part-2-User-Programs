@@ -311,13 +311,13 @@ process_cleanup (void) {
 	struct thread *child, *curr = thread_current ();
 	struct terminated_child_st *child_st;
 	struct list_elem *child_elem;
-
-	ASSERT (intr_get_level () == INTR_OFF);
+	enum intr_level old_level;
 
 #ifdef VM
 	supplemental_page_table_kill (&curr->spt);
 #endif
 
+	old_level = intr_disable ();
 	/* Destroy unfreed information of finished child processes (this occurs
 	 * when wait() is not called on a pid). */
 	while (!list_empty (&curr->terminated_children_st)) {
@@ -334,6 +334,7 @@ process_cleanup (void) {
 			child->parent = NULL;
 		}
 	}
+	intr_set_level (old_level);
 
 	uint64_t *pml4;
 	/* Destroy the current process's page directory and switch back
