@@ -38,7 +38,7 @@ struct fd_table {
 		 inclusive.
 		 By design, the 0th, 1th and 2nd file descriptors can be the only ones
 		 in open state with a NULL associated file pointer. */
-	struct file_descriptor *table;
+	struct file_descriptor table[];
 };
 #endif
 
