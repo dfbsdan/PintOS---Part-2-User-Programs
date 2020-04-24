@@ -278,15 +278,19 @@ static bool active_child (tid_t child_tid) {
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (int status) {
-	struct thread *curr = thread_current ();
+	struct thread *child, *curr = thread_current ();
 	struct terminated_child_st *child_st;
+	struct list_elem *child_elem;
+	struct file_descriptor *fd;
 
 	ASSERT (intr_get_level () == INTR_OFF);
 
 	curr->exit_status = status;
 	if (thread_is_user ()) {
 		ASSERT (curr->executable);
+		ASSERT (curr->fd_t.table);
 		file_close(curr->executable);
+		/* Report termination to parent, if any. */
 		if (curr->parent) {
 			/* Remove from parent's active_children list. */
 			list_remove (&curr->active_child_elem);
@@ -297,28 +301,21 @@ process_exit (int status) {
 			child_st->exit_status = curr->exit_status;
 			list_push_back (&curr->parent->terminated_children_st, &child_st->elem);
 		}
+		/* Destroy file descriptor table. */
+		for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
+			fd = &curr->fd_t.table[i];
+			if (fd->file) {
+				ASSERT (fd->fd_st == FD_OPEN);
+				file_close (fd->file);
+			}
+		}
+		free (curr->fd_t.table);
 		/* Print exit status. */
 		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+	} else { //Debugging purposes
+		ASSERT (curr->executable == NULL);
+		ASSERT (curr->fd_t.table == NULL);
 	}
-	else
-		ASSERT (curr->executable == NULL); //Debugging purposes
-	process_cleanup ();
-}
-
-/* Free the current process's resources. */
-static void
-process_cleanup (void) {
-	struct thread *child, *curr = thread_current ();
-	struct terminated_child_st *child_st;
-	struct list_elem *child_elem;
-	enum intr_level old_level;
-	struct file_descriptor *fd;
-
-#ifdef VM
-	supplemental_page_table_kill (&curr->spt);
-#endif
-
-	old_level = intr_disable ();
 	/* Destroy unfreed information of finished child processes (this occurs
 	 * when wait() is not called on a pid). */
 	while (!list_empty (&curr->terminated_children_st)) {
@@ -335,22 +332,17 @@ process_cleanup (void) {
 			child->parent = NULL;
 		}
 	}
-	intr_set_level (old_level);
-	/* Destroy file descriptor table. */
-	if (thread_is_user ()) {
-		ASSERT (curr->fd_t.table);
-		printf("Thread: '%s' destroying fdt of size: %d\n", curr->name, curr->fd_t.max_open_fd);
-		for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
-			fd = &curr->fd_t.table[i];
-			printf("File?: %d, st: %s\n", fd->file != NULL, (fd->fd_st == FD_CLOSE)? "CLOSE": "OPEN");
-			/*if (fd->file) {
-				ASSERT (fd->fd_st == FD_OPEN);
-				file_close (fd->file);
-			}*/
-		}/*
-		free (curr->fd_t.table);*/
-	}	else
-		ASSERT (curr->fd_t.table == NULL); //Debugging purposes
+	process_cleanup ();
+}
+
+/* Free the current process's resources. */
+static void
+process_cleanup (void) {
+	struct thread *curr = thread_current ();
+
+#ifdef VM
+	supplemental_page_table_kill (&curr->spt);
+#endif
 
 	uint64_t *pml4;
 	/* Destroy the current process's page directory and switch back
