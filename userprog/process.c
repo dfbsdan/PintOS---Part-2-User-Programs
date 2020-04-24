@@ -337,15 +337,17 @@ process_cleanup (void) {
 	}
 	intr_set_level (old_level);
 	/* Destroy file descriptor table. */
-	fd_table = &curr->fd_t.table;
-	for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
-		fd = &fd_table[i];
-		if (fd->file) {
-			ASSERT (fd->fd_st == FD_OPEN);
-			file_close (fd->file);
+	if (thread_is_user ()) {
+		fd_table = &curr->fd_t.table;
+		for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
+			fd = &fd_table[i];
+			if (fd->file) {
+				ASSERT (fd->fd_st == FD_OPEN);
+				file_close (fd->file);
+			}
 		}
+		free (fd_table);
 	}
-	free (fd_table);
 
 	uint64_t *pml4;
 	/* Destroy the current process's page directory and switch back
