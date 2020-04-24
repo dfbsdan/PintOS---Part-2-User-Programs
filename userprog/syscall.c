@@ -67,7 +67,6 @@ void
 syscall_handler (struct intr_frame *f) {
 	/////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	ASSERT (thread_is_user ());
-	printf("SYSCALL!!\n");
 	switch (f->R.rax) {
 		case SYS_HALT:
 			syscall_halt ();
