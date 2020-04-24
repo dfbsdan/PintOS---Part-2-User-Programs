@@ -289,6 +289,8 @@ process_exit (int status) {
 	if (thread_is_user ()) {
 		ASSERT (curr->executable);
 		ASSERT (curr->fd_t.table);
+		ASSERT (curr->fd_t.table.size <= MAX_FD + 1);
+		ASSERT (curr->fd_t.table.max_open_fd <= MAX_FD && curr->fd_t.table.max_open_fd >= -1);
 		file_close(curr->executable);
 		/* Report termination to parent, if any. */
 		if (curr->parent) {

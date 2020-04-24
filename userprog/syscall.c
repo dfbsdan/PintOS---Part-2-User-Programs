@@ -44,6 +44,7 @@ static unsigned syscall_tell (int fd);
 static void syscall_close (int fd);
 static int syscall_dup2 (int oldfd, int newfd);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+static int create_file_descriptor (struct file *file);
 static void check_address(void *addr);
 static int get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
@@ -165,6 +166,7 @@ syscall_exit (int status) {
  * virtual address). */
 static int
 syscall_fork (const char *thread_name UNUSED) {
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
 	ASSERT (0);
 }
 
@@ -176,6 +178,7 @@ syscall_fork (const char *thread_name UNUSED) {
  * descriptors remain open across an exec call. */
 static int
 syscall_exec (const char *file UNUSED) {
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
 	ASSERT (0);
 }
 
@@ -208,6 +211,7 @@ syscall_wait (int pid) {
 * require a open system call. */
 static bool
 syscall_create (const char *file, unsigned initial_size) {
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
 	return filesys_create(file, initial_size);
 }
 
@@ -217,6 +221,7 @@ syscall_create (const char *file, unsigned initial_size) {
  * Open File in FAQ for details. */
 static bool
 syscall_remove (const char *file) {
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
 	return filesys_remove(file);
 }
 
@@ -235,14 +240,82 @@ syscall_remove (const char *file) {
  * the linux scheme, which returns integer starting from zero, to do the
  * extra. */
 static int
-syscall_open (const char *file UNUSED) {
-	ASSERT (0);
+syscall_open (const char *file) {
+	struct file *f;
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
+	f = filesys_open (file);
+	if (f == NULL)
+		return -1;
+	return create_file_descriptor (f);
+}
+
+/* Opens a file descriptor in the current process' file descriptor table
+	 and maps it to the given FILE. Returns -1 on failure, otherwise a file
+	 descriptor (integer) in the range [0, MAX_FD], inclusive. */
+static int
+create_file_descriptor (struct file *file) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *fd;
+
+	ASSERT (file);
+	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
+
+	if (fd_t->size == MAX_FD + 1) { /* Full table. */
+		file_close (file);
+		return -1;
+	}
+	/* Find and return the fd with lowest index available. */
+	for (int i = 0; i <= MAX_FD; i++) {
+		fd = &fd_t->table[i];
+		switch (fd->fd_st) {
+			case FD_OPEN:
+				if (fd->file == NULL)
+					ASSERT (i <= 2);
+				break;
+			case FD_CLOSE:
+				ASSERT (fd->file == NULL);
+				fd->fd_st = FD_OPEN;
+				fd->file = file;
+				fd_t->size++;
+				if (i > fd_t->max_open_fd)
+					fd_t->max_open_fd = i;
+				return i;
+			default:
+				ASSERT (0);
+		}
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Returns the size, in bytes, of the file open as fd. */
 static int
-syscall_filesize (int fd UNUSED) {
-	ASSERT (0);
+syscall_filesize (int fd) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return -1;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->file == NULL) { /* stdin, stdout or stderr. */
+				ASSERT (fd <= 2);
+				return -1;
+			}
+			return (int)inode_length (file_descriptor->file->inode);
+		case FD_CLOSE:
+			ASSERT (file_descriptor->file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Reads size bytes from the file open as fd into buffer. Returns the
@@ -250,8 +323,36 @@ syscall_filesize (int fd UNUSED) {
  * could not be read (due to a condition other than end of file). fd 0
  * reads from the keyboard using input_getc(). */
 static int
-syscall_read (int fd UNUSED, void *buffer UNUSED, unsigned length UNUSED) {
-	ASSERT (0);
+syscall_read (int fd, void *buffer, unsigned length) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
+	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return -1;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->file == NULL) { /* stdin, stdout or stderr. */
+				ASSERT (fd <= 2);
+				if (fd >= 1) /* stdout or stderr. */
+					return -1;
+				//TODO: Read from stdin
+				return ;
+			}
+			//TODO: Read from file
+			return ;
+		case FD_CLOSE:
+			ASSERT (file_descriptor->file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Writes size bytes from buffer to the open file fd. Returns the number
@@ -267,8 +368,36 @@ syscall_read (int fd UNUSED, void *buffer UNUSED, unsigned length UNUSED) {
 * processes may end up interleaved on the console, confusing both human
 * readers and our grading scripts. */
 static int
-syscall_write (int fd UNUSED, const void *buffer UNUSED, unsigned length UNUSED) {
-	syscall_exit (-1); ////////////////////////////////////////////////////////////////////////////////////////////TEMPORAL USAGE FOR TESTING
+syscall_write (int fd, const void *buffer, unsigned length) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
+	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return -1;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->file == NULL) { /* stdin, stdout or stderr. */
+				ASSERT (fd <= 2);
+				if (fd == 0) /* stdin. */
+					return -1;
+				//TODO: Write to stdout or stderr stream
+				return ;
+			}
+			//TODO: Write to file
+			return ;
+		case FD_CLOSE:
+			ASSERT (file_descriptor->file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Changes the next byte to be read or written in open file fd to
@@ -282,6 +411,7 @@ syscall_write (int fd UNUSED, const void *buffer UNUSED, unsigned length UNUSED)
  * special effort in system call implementation. */
 static void
 syscall_seek (int fd UNUSED, unsigned position UNUSED) {
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
 	ASSERT (0);
 }
 
@@ -289,6 +419,7 @@ syscall_seek (int fd UNUSED, unsigned position UNUSED) {
 * file fd, expressed in bytes from the beginning of the file. */
 static unsigned
 syscall_tell (int fd UNUSED) {
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
 	ASSERT (0);
 }
 
@@ -296,8 +427,33 @@ syscall_tell (int fd UNUSED) {
  * closes all its open file descriptors, as if by calling this function
  * for each one. */
 static void
-syscall_close (int fd UNUSED) {
-	ASSERT (0);
+syscall_close (int fd) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			file_descriptor->fd_st = FD_CLOSE;
+			if (file_descriptor->file == NULL) { /* stdin, stdout or stderr. */
+				ASSERT (fd <= 2);
+				return;
+			}
+			//TODO: Close file
+			return ;
+		case FD_CLOSE:
+			ASSERT (file_descriptor->file == NULL);
+			return;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* The dup2() system call creates a copy of the file descriptor oldfd with
@@ -317,6 +473,7 @@ syscall_close (int fd UNUSED) {
  * changed for the other. */
 static int
 syscall_dup2 (int oldfd UNUSED, int newfd UNUSED) {
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
 	ASSERT (0);
 }
 
