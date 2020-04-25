@@ -66,7 +66,6 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f) {
-	/////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 	ASSERT (thread_is_user ());
 	switch (f->R.rax) {
 		case SYS_HALT:
@@ -128,9 +127,6 @@ syscall_handler (struct intr_frame *f) {
 		default:
 			ASSERT (0); //Unknown syscall (could not be implemented yet)
 	}
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	//printf ("system call!\n");
-	//thread_exit ();
 }
 
 /* Terminates Pintos by calling power_off(). This should be seldom used,
@@ -339,12 +335,12 @@ syscall_read (int fd, void *buffer, unsigned length) {
 						|| file_descriptor->fd_t == FDT_STDOUT);
 				if (file_descriptor->fd_t == FDT_STDOUT)
 					return -1;
-				///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Read from stdin
-				return ;
+				ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Read from stdin
+				return -1;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Read from file
-			return ;
+			ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Read from file
+			return -1;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->file == NULL);
@@ -369,6 +365,7 @@ static int
 syscall_write (int fd, const void *buffer, unsigned length) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
+	unsigned bytes_written, bytes_left = length;
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
 	ASSERT (fd_t->table);
@@ -384,12 +381,18 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 						|| file_descriptor->fd_t == FDT_STDOUT);
 				if (file_descriptor->fd_t == FDT_STDIN)
 					return -1;
-				///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Write to stdout stream
-				return ;
+				/* Write to stdout. */
+				while (bytes_left > 0) {
+					/* Write in 200-byte chunks. */
+					bytes_written = (bytes_left > 200)? 200: bytes_left;
+					putbuf (buffer + length - bytes_left, bytes_written);
+					bytes_left -= bytes_written;
+				}
+				return length;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Write to file
-			return ;
+			ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Write to file
+			return -1;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->file == NULL);
@@ -419,22 +422,22 @@ syscall_seek (int fd, unsigned position) {
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
 	if (fd < 0 || fd > MAX_FD)
-		return -1;
+		return;
 	file_descriptor = &fd_t->table[fd];
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			if (file_descriptor->file == NULL) {
 				ASSERT (file_descriptor->fd_t == FDT_STDIN
 						|| file_descriptor->fd_t == FDT_STDOUT);
-				return -1;
+				return;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Change file offset
-			return ;
+			ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Change file offset
+			return;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->file == NULL);
-			return -1;
+			return;
 		default:
 			ASSERT (0);
 	}
@@ -452,22 +455,22 @@ syscall_tell (int fd) {
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
 	if (fd < 0 || fd > MAX_FD)
-		return -1;
+		return 0;
 	file_descriptor = &fd_t->table[fd];
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			if (file_descriptor->file == NULL) {
 				ASSERT (file_descriptor->fd_t == FDT_STDIN
 						|| file_descriptor->fd_t == FDT_STDOUT);
-				return -1;
+				return 0;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Get file offset
-			return ;
+			ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Get file offset
+			return 0;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->file == NULL);
-			return -1;
+			return 0;
 		default:
 			ASSERT (0);
 	}
@@ -494,11 +497,13 @@ syscall_close (int fd) {
 			if (file_descriptor->file == NULL) {
 				ASSERT (file_descriptor->fd_t == FDT_STDIN
 						|| file_descriptor->fd_t == FDT_STDOUT);
+				file_descriptor->fd_t = FDT_OTHER;
 				return;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Close file
-			return ;
+			file_close (file_descriptor->file);
+			file_descriptor->file = NULL;
+			return;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->file == NULL);
