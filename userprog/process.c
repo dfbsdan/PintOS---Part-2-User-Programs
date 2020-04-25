@@ -152,6 +152,7 @@ __do_fork (void *aux) {
 
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	if_.R.rax = 0;
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
@@ -199,7 +200,6 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 	ASSERT (curr_fd_t);
 	ASSERT (curr_fd_t->table);
 
-	printf("DUPLICATING FDT\n");
 	old_level = intr_disable ();
 	/* Set table size. */
 	curr_fd_t->size = parent_fd_t->size;
@@ -234,7 +234,6 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 		}
 	}
 	intr_set_level (old_level);
-	printf("FINISHED DUPLICATING FDT\n");
 }
 
 /* Switch the current execution context to the f_name.
