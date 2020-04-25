@@ -46,8 +46,8 @@ static void syscall_close (int fd);
 static int syscall_dup2 (int oldfd, int newfd);
 static int create_file_descriptor (struct file *file);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
-static void check_mem_space_read (void *addr_, const size_t size, const bool is_str);
-static void check_mem_space_write (void *addr_, const size_t size);
+static void check_mem_space_read (const void *addr_, const size_t size, const bool is_str);
+static void check_mem_space_write (const void *addr_, const size_t size);
 static int64_t get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
