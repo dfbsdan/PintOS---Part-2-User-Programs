@@ -30,7 +30,7 @@ struct file_descriptor {
 	/* File associated with the fd. If the fd is open, this has to be a
 		 valid file pointer unless its type is FDT_STDIN or FDT_STDOUT.
 		 If the fd is closed, FILE is always NULL */
-	struct file *file;
+	struct file *fd_file;
 };
 
 /* Structure holding the file descriptors of a process. */

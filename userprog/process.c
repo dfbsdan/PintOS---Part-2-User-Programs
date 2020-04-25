@@ -307,15 +307,15 @@ process_exit (int status) {
 			fd = &curr->fd_t.table[i];
 			switch (fd->fd_st) {
 				case FD_OPEN:
-					if (fd->file == NULL) {
+					if (fd->fd_file == NULL) {
 						ASSERT (fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT);
 						break;
 					}
 					ASSERT (fd->fd_t == FDT_OTHER);
-					file_close (fd->file);
+					file_close (fd->fd_file);
 					break;
 				case FD_CLOSE:
-					ASSERT (fd->fd_t == FDT_OTHER && fd->file == NULL);
+					ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL);
 					break;
 				default:
 					ASSERT (0);
