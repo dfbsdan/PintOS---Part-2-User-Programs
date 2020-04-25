@@ -213,7 +213,7 @@ syscall_wait (int pid) {
 static bool
 syscall_create (const char *file, unsigned initial_size) {
 	if (file == NULL)
-		return false;
+		thread_exit(-1);
 	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations: file
 	return filesys_create(file, initial_size);
 }
