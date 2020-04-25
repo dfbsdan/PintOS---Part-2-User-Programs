@@ -172,7 +172,7 @@ __do_fork (void *aux) {
 	ASSERT (current->executable);
 	file_deny_write(current->executable); /* Deny write. */
 	duplicate_fd_table (&parent->fd_t);
-	
+
 	/* Let parent finish forking. */
 	sema_up (&parent->fork_sema);
 
@@ -393,9 +393,11 @@ process_exit (int status) {
 			}
 		}
 		free (curr->fd_t.table);
-		if (!thread_tests) {
-			ASSERT (curr->executable);
+		if (curr->executable)
 			file_close(curr->executable);
+		if (!thread_tests) {
+			//ASSERT (curr->executable);
+			//file_close(curr->executable);
 			/* Print exit status. */
 			printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
 		}
