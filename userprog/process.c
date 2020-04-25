@@ -289,10 +289,6 @@ process_exit (int status) {
 	if (thread_is_user ()) {
 		ASSERT (curr->fd_t.table);
 		ASSERT (curr->fd_t.size <= MAX_FD + 1);
-		if (!thread_tests) {
-			ASSERT (curr->executable);
-			file_close(curr->executable);
-		}
 		/* Report termination to parent, if any. */
 		if (curr->parent) {
 			/* Remove from parent's active_children list. */
@@ -324,8 +320,12 @@ process_exit (int status) {
 			}
 		}
 		free (curr->fd_t.table);
-		/* Print exit status. */
-		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+		if (!thread_tests) {
+			ASSERT (curr->executable);
+			file_close(curr->executable);
+			/* Print exit status. */
+			printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+		}
 	} else { //Debugging purposes
 		ASSERT (curr->executable == NULL);
 		ASSERT (curr->fd_t.table == NULL);
