@@ -348,7 +348,7 @@ syscall_read (int fd, void *buffer, unsigned length) {
 	if (buffer == NULL)
 		return -1;
 	printf("READ: About to check mem space\n");
-	check_mem_space_read (buffer, length, false);
+	check_mem_space_write (buffer, length);
 	printf("READ: Checked mem space\n");
 
 	ASSERT (fd_t->table);
@@ -398,7 +398,7 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 	if (buffer == NULL)
 		return -1;
 	printf("WRITE: About to check mem space\n");
-	check_mem_space_write (buffer, length);
+	check_mem_space_read (buffer, length, false);
 	printf("WRITE: Checked mem space\n");
 
 	ASSERT (fd_t->table);
