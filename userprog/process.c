@@ -109,7 +109,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	/* If the parent_page is kernel page, then return immediately. */
 	if (is_kern_pte (pte)){
 		printf("DUPLICATE_PTE: KERN PTE\n");
-		return false;}
+		return true;}
 
 	/* Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
