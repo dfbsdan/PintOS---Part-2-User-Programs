@@ -11,7 +11,6 @@
 #include "threads/vaddr.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
-#include "filesys/inode.h"
 #include "intrinsic.h"
 
 void syscall_entry (void);
@@ -45,8 +44,8 @@ static void syscall_seek (int fd, unsigned position);
 static unsigned syscall_tell (int fd);
 static void syscall_close (int fd);
 static int syscall_dup2 (int oldfd, int newfd);
-////////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 static int create_file_descriptor (struct file *file);
+////////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 static void check_address(void *addr);
 static int get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
@@ -209,7 +208,7 @@ syscall_wait (int pid) {
 * require a open system call. */
 static bool
 syscall_create (const char *file, unsigned initial_size) {
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument: file
 	return filesys_create(file, initial_size);
 }
 
@@ -303,7 +302,7 @@ syscall_filesize (int fd) {
 				return -1;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			return (int)inode_length (file_get_inode (file_descriptor->fd_file));
+			return (int)file_length (file_descriptor->fd_file);
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->fd_file == NULL);
@@ -319,11 +318,12 @@ syscall_filesize (int fd) {
  * could not be read (due to a condition other than end of file). fd 0
  * reads from the keyboard using input_getc(). */
 static int
-syscall_read (int fd, void *buffer UNUSED, unsigned length UNUSED) {
+syscall_read (int fd, void *buffer, unsigned length) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
+	unsigned bytes_read = 0, bytes_left = length;
 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument: buffer
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
@@ -337,12 +337,15 @@ syscall_read (int fd, void *buffer UNUSED, unsigned length UNUSED) {
 						|| file_descriptor->fd_t == FDT_STDOUT);
 				if (file_descriptor->fd_t == FDT_STDOUT)
 					return -1;
-				ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Read from stdin
-				return -1;
+				while (bytes_left > 0) {
+					buffer[bytes_read] = input_getc ();
+					bytes_read++;
+					bytes_left--;
+				}
+				return length;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Read from file
-			return -1;
+			return (int)file_read (file_descriptor->fd_file, buffer, length);
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->fd_file == NULL);
@@ -358,18 +361,14 @@ syscall_read (int fd, void *buffer UNUSED, unsigned length UNUSED) {
 * could not be written (end-of-file reached), 0 meaning no bytes written
 * at all. Writing past end-of-file would normally extend the file, but
 * file growth is not implemented by the basic file system.
-* fd 1 writes to the console (stdout).
-Your code to write to the console should write all of buffer in one call to putbuf(), at least as
-long as size is not bigger than a few hundred bytes (It is reasonable to break up larger buffers).
-Otherwise, lines of text output by different processes may end up interleaved on the console,
-confusing both human readers and our grading scripts. */
+* fd 1 writes to the console (stdout). */
 static int
 syscall_write (int fd, const void *buffer, unsigned length) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
 	unsigned bytes_written, bytes_left = length;
 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument: buffer
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
@@ -393,8 +392,7 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 				return length;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Write to file
-			return -1;
+			return (int)file_write (file_descriptor->fd_file, buffer, length);
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->fd_file == NULL);
@@ -415,11 +413,10 @@ syscall_write (int fd, const void *buffer, unsigned length) {
  * semantics are implemented in the file system and do not require any
  * special effort in system call implementation. */
 static void
-syscall_seek (int fd, unsigned position UNUSED) {
+syscall_seek (int fd, unsigned position) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
 
-	//////////////////////////////////////////////////////////////////////////////////////////////REMAINDER: position greater than eof treated as eof
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
@@ -434,7 +431,7 @@ syscall_seek (int fd, unsigned position UNUSED) {
 				return;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Change file offset
+			file_seek (file_descriptor->fd_file, position);
 			return;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
@@ -467,8 +464,7 @@ syscall_tell (int fd) {
 				return 0;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			ASSERT (0);///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Get file offset
-			return 0;
+			return (unsigned)file_tell (file_descriptor->fd_file);
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->fd_file == NULL);
