@@ -32,7 +32,7 @@ void syscall_handler (struct intr_frame *);
 static void syscall_halt (void);
 static void syscall_exit (int status);
 static int syscall_fork (const char *thread_name);
-static int syscall_exec (const char *file);
+static int syscall_exec (const char *cmd_line);
 static int syscall_wait (int pid);
 static bool syscall_create (const char *file, unsigned initial_size);
 static bool syscall_remove (const char *file);
@@ -162,8 +162,10 @@ syscall_exit (int status) {
  * but you need to fill missing parts of passed pte_for_each_func (See
  * virtual address). */
 static int
-syscall_fork (const char *thread_name UNUSED) {
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
+syscall_fork (const char *thread_name) {
+	if (thread_name == NULL)
+		return -1;
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations
 	ASSERT (0);
 }
 
@@ -174,8 +176,10 @@ syscall_fork (const char *thread_name UNUSED) {
  * change the name of the thread that called exec. Please note that file
  * descriptors remain open across an exec call. */
 static int
-syscall_exec (const char *file UNUSED) {
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
+syscall_exec (const char *cmd_line) {
+	if (cmd_line == NULL)
+		thread_exit (-1);
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations
 	ASSERT (0);
 }
 
@@ -208,7 +212,9 @@ syscall_wait (int pid) {
 * require a open system call. */
 static bool
 syscall_create (const char *file, unsigned initial_size) {
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument: file
+	if (file == NULL)
+		return false;
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations: file
 	return filesys_create(file, initial_size);
 }
 
@@ -217,7 +223,9 @@ syscall_create (const char *file, unsigned initial_size) {
  * closed, and removing an open file does not close it. */
 static bool
 syscall_remove (const char *file) {
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
+	if (file == NULL)
+		return false;
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations
 	return filesys_remove(file);
 }
 
@@ -236,7 +244,10 @@ syscall_remove (const char *file) {
 static int
 syscall_open (const char *file) {
 	struct file *f;
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
+
+	if (file == NULL)
+		return -1;
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations
 	f = filesys_open (file);
 	if (f == NULL)
 		return -1;
@@ -324,7 +335,9 @@ syscall_read (int fd, void *buffer, unsigned length) {
 	uint8_t *ui8buffer = (uint8_t*)buffer;
 	unsigned bytes_read = 0, bytes_left = length;
 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument: buffer
+	if (buffer == NULL)
+		return -1;
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations: buffer
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
@@ -369,7 +382,9 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 	struct file_descriptor *file_descriptor;
 	unsigned bytes_written, bytes_left = length;
 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument: buffer
+	if (buffer == NULL)
+		return -1;
+	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations: buffer
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
