@@ -145,6 +145,8 @@ __do_fork (void *aux) {
 	struct intr_frame *parent_if = &parent->tf;
 	bool succ = true;
 
+	ASSERT (thread_is_user (parent));
+	ASSERT (parent->executable);
 	ASSERT (parent->fork_sema.value == 0);
 	ASSERT (list_size (&parent->fork_sema.waiters) == 1);
 
@@ -166,14 +168,11 @@ __do_fork (void *aux) {
 		goto error;
 #endif
 
-	if (thread_is_user (parent)) {
-		ASSERT (parent->executable);
-		current->executable = file_duplicate (parent->executable); /* Assign executable file. */
-		ASSERT (current->executable);
-		file_deny_write(current->executable); /* Deny write. */
-		duplicate_fd_table (&parent->fd_t);
-	}
-
+	current->executable = file_duplicate (parent->executable); /* Assign executable file. */
+	ASSERT (current->executable);
+	file_deny_write(current->executable); /* Deny write. */
+	duplicate_fd_table (&parent->fd_t);
+	
 	/* Let parent finish forking. */
 	sema_up (&parent->fork_sema);
 
