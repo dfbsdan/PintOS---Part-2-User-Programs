@@ -130,7 +130,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* If fail to insert page, do error handling. */
 		palloc_free_page(newpage);
-		printf("DUPLICATE_PTE: SET_PAGE\n", );
+		printf("DUPLICATE_PTE: SET_PAGE\n");
 		return false;///////////////////////////////////////////////////////////////////////////Error handling correct?
 	}
 	return true;
