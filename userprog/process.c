@@ -749,13 +749,14 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 				esp -= sizeof (char*);
 				memcpy (esp, &argv[i], sizeof (char*));
 		}
-		/* Set registers. */
+		/* Set argument registers. */
 		if_->R.rdi = (uint64_t)argc;
 		if_->R.rsi = (uint64_t)esp;
 		/* Leave a space for the return address. */
 		esp -= sizeof (void*);
 		memset (esp, 0, sizeof (void*));
-		if_->rsp = (uintptr_t)esp;/////////////////////////////////////////////////////////////////////////////TESTING
+		/* Set process' initial stack pointer. */
+		if_->rsp = (uintptr_t)esp;
 	}
 	return success;
 }
