@@ -105,20 +105,17 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *newpage;
 	bool writable;
 
-	printf("DUPLICATE_PTE\n");
 	/* If the parent_page is kernel page, then return immediately. */
-	if (is_kern_pte (pte)){
-		printf("DUPLICATE_PTE: KERN PTE\n");
-		return true;}
+	if (is_kern_pte (pte))
+		return true;
 
 	/* Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
 
 	/* Allocate new PAL_USER page for the child and set result to NEWPAGE. */
 	newpage = palloc_get_page (PAL_USER);
-	if (newpage == NULL){
-		printf("DUPLICATE_PTE: NULL NEWPAGE\n");
-		return false;}
+	if (newpage == NULL)
+		return false;
 
 	/* Duplicate parent's page to the new page and check whether parent's
 	 * page is writable or not. */
@@ -130,7 +127,6 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* If fail to insert page, do error handling. */
 		palloc_free_page(newpage);
-		printf("DUPLICATE_PTE: SET_PAGE\n");
 		return false;///////////////////////////////////////////////////////////////////////////Error handling correct?
 	}
 	return true;
