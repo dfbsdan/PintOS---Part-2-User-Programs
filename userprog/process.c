@@ -472,6 +472,8 @@ load (const char *command, struct intr_frame *if_) {
   strlcpy (command_copy, command, strlen (command) + 1);
   file_name = strtok_r (command_copy, " ", &save_ptr);
 	ASSERT (file_name != NULL);
+	/* Update thread's name. */
+	strlcpy (t->name, file_name, sizeof t->name);
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
