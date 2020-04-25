@@ -156,8 +156,9 @@ __do_fork (void *aux) {
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
-	if (current->pml4 == NULL)
-		goto error;
+	if (current->pml4 == NULL) {
+		printf("DOFORK: ERROR CREATING PML4\n");
+		goto error;}
 
 	process_activate (current);
 #ifdef VM
@@ -165,8 +166,9 @@ __do_fork (void *aux) {
 	if (!supplemental_page_table_copy (&current->spt, &parent->spt))
 		goto error;
 #else
-	if (!pml4_for_each (parent->pml4, duplicate_pte, parent))
-		goto error;
+	if (!pml4_for_each (parent->pml4, duplicate_pte, parent)){
+		printf("DOFORK: ERROR FOREACH\n");
+		goto error;}
 #endif
 
 	current->executable = file_duplicate (parent->executable); /* Assign executable file. */
@@ -180,12 +182,10 @@ __do_fork (void *aux) {
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
-	printf("DOFORK SUCCESS\n");
 	if (succ)
 		do_iret (&if_);
 	ASSERT (0);
 error:
-	printf("DOFORK ERROR\n");
 	sema_up (&parent->fork_sema);
 	thread_exit (-1);
 }
