@@ -321,6 +321,7 @@ static int
 syscall_read (int fd, void *buffer, unsigned length) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
+	uint8_t *ui8buffer = (uint8_t*)buffer;
 	unsigned bytes_read = 0, bytes_left = length;
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument: buffer
@@ -338,7 +339,7 @@ syscall_read (int fd, void *buffer, unsigned length) {
 				if (file_descriptor->fd_t == FDT_STDOUT)
 					return -1;
 				while (bytes_left > 0) {
-					buffer[bytes_read] = input_getc ();
+					ui8buffer[bytes_read] = input_getc ();
 					bytes_read++;
 					bytes_left--;
 				}
