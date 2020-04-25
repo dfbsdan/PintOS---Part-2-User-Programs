@@ -150,7 +150,7 @@ __do_fork (void *aux) {
 	ASSERT (list_size (&parent->fork_sema.waiters) == 1);
 
 	/* 1. Read the cpu context to local stack. */
-	memcpy (&curr->tf, parent_if, sizeof (struct intr_frame));
+	memcpy (&current->tf, parent_if, sizeof (struct intr_frame));
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
@@ -179,7 +179,7 @@ __do_fork (void *aux) {
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
-		do_iret (&curr->tf);
+		do_iret (&current->tf);
 	NOT_REACHED ();
 error:
 	sema_up (&parent->fork_sema);
