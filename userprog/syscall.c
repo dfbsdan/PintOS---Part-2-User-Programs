@@ -334,8 +334,6 @@ syscall_read (int fd, void *buffer, unsigned length) {
 	uint8_t *ui8buffer = (uint8_t*)buffer;
 	unsigned bytes_read = 0, bytes_left = length;
 
-	if (buffer == NULL)
-		return -1;
 	check_mem_space_write (buffer, length);
 
 	ASSERT (fd_t->table);
@@ -382,8 +380,6 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 	struct file_descriptor *file_descriptor;
 	unsigned bytes_written, bytes_left = length;
 
-	if (buffer == NULL)
-		return -1;
 	check_mem_space_read (buffer, length, false);
 
 	ASSERT (fd_t->table);
