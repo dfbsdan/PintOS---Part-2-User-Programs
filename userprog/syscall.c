@@ -10,6 +10,8 @@
 #include "threads/init.h"
 #include "threads/vaddr.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "filesys/inode.h"
 #include "intrinsic.h"
 
 void syscall_entry (void);
@@ -317,7 +319,7 @@ syscall_filesize (int fd) {
  * could not be read (due to a condition other than end of file). fd 0
  * reads from the keyboard using input_getc(). */
 static int
-syscall_read (int fd, void *buffer, unsigned length) {
+syscall_read (int fd, void *buffer UNUSED, unsigned length UNUSED) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
 
@@ -413,7 +415,7 @@ syscall_write (int fd, const void *buffer, unsigned length) {
  * semantics are implemented in the file system and do not require any
  * special effort in system call implementation. */
 static void
-syscall_seek (int fd, unsigned position) {
+syscall_seek (int fd, unsigned position UNUSED) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
 
