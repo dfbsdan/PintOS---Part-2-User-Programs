@@ -755,6 +755,7 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 		/* Leave a space for the return address. */
 		esp -= sizeof (void*);
 		memset (esp, 0, sizeof (void*));
+		if_->rsp = (uintptr_t)esp;/////////////////////////////////////////////////////////////////////////////TESTING
 	}
 	return success;
 }
