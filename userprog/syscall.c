@@ -46,8 +46,9 @@ static void syscall_close (int fd);
 static int syscall_dup2 (int oldfd, int newfd);
 static int create_file_descriptor (struct file *file);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
-static void check_address(void *addr);
-static int get_user(const uint8_t *uaddr);
+static void check_mem_space_read (void *addr_, const size_t size, const bool is_str);
+static void check_mem_space_write (void *addr_, const size_t size);
+static int64_t get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -165,8 +166,8 @@ static int
 syscall_fork (const char *thread_name) {
 	if (thread_name == NULL)
 		return -1;
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations
-	ASSERT (0);
+	check_mem_space_read (thread_name, 0, true);
+	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////Not implemented
 }
 
 /* Change current process to the executable whose name is given in
@@ -179,8 +180,8 @@ static int
 syscall_exec (const char *cmd_line) {
 	if (cmd_line == NULL)
 		thread_exit (-1);
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations
-	ASSERT (0);
+	check_mem_space_read (cmd_line, 0, true);
+	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////Not implemented
 }
 
 /* Waits for a child process pid and retrieves the child's exit status.
@@ -212,9 +213,7 @@ syscall_wait (int pid) {
 * require a open system call. */
 static bool
 syscall_create (const char *file, unsigned initial_size) {
-	if (file == NULL)
-		thread_exit(-1);
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations: file
+	check_mem_space_read (file, 0, true);
 	return filesys_create(file, initial_size);
 }
 
@@ -225,7 +224,7 @@ static bool
 syscall_remove (const char *file) {
 	if (file == NULL)
 		return false;
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations
+	check_mem_space_read (file, 0, true);
 	return filesys_remove(file);
 }
 
@@ -247,7 +246,7 @@ syscall_open (const char *file) {
 
 	if (file == NULL)
 		return -1;
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations
+	check_mem_space_read (file, 0, true);
 	f = filesys_open (file);
 	if (f == NULL)
 		return -1;
@@ -337,7 +336,8 @@ syscall_read (int fd, void *buffer, unsigned length) {
 
 	if (buffer == NULL)
 		return -1;
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations: buffer
+	check_mem_space_read (buffer, length, false);
+
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
@@ -384,7 +384,8 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 
 	if (buffer == NULL)
 		return -1;
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument's memory violations: buffer
+	check_mem_space_write (buffer, length);
+
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
@@ -582,14 +583,88 @@ syscall_dup2 (int oldfd, int newfd) {
 	ASSERT (0); /* Should not be reached. */
 }
 
+/* Given the address ADDR of a memory space of size SIZE bytes, this
+ * function checks if a memory violation occurs when trying to read from it.
+ * If ADDR points to a string, the IS_STR variable must be set to true
+ * (otherwise false) and SIZE must be 0.
+ * If there is a memory violation (or ADDR is NULL), the process will be
+ * terminated with exit status of -1, otherwise nothing happens. */
+static void
+check_mem_space_read (const void *addr_, const size_t size, const bool is_str) {
+	uint8_t *addr = (uint8_t*)addr_;
+
+	if (addr == NULL)
+		thread_exit (-1);
+	if (is_str) { /* String assumed. */
+		ASSERT (size == 0);
+		/* Check the first byte pointed to by ADDR. */
+		if (!is_user_vaddr(addr) || get_user (addr) == -1)
+			thread_exit (-1);
+		/* Check each byte of memory starting at ADDR+1 until NULL is found. */
+		while (*addr) {
+			addr++;
+			if (!is_user_vaddr(addr) || get_user (addr) == -1)
+				thread_exit (-1);
+		}
+	}
+	else {
+		/* Check the SIZE-bytes of memory starting at ADDR. */
+		for (size_t i = 0; i < size; i++) {
+			if (!is_user_vaddr(addr) || get_user (addr) == -1)
+				thread_exit (-1);
+			addr++;
+		}
+	}
+}
+
+/* Reads a byte at user virtual address UADDR.
+ * UADDR must be below KERN_BASE.
+ * Returns the byte value if successful, -1 if a segfault occurred. */
+static int64_t
+get_user (const uint8_t *uaddr) {
+	int64_t result;
+	__asm __volatile (
+		"movabsq $done_get, %0\n"
+		"movzbq %1, %0\n"
+		"done_get:\n"
+		: "=&a" (result) : "m" (*uaddr));
+	return result;
+}
+
+/* Given the address ADDR of a memory space of size SIZE bytes, this
+ * function checks if a memory violation occurs when trying to write on it.
+ * If there is a memory violation (or ADDR is NULL), the process will be
+ * terminated with exit status of -1, otherwise nothing happens.
+ * The space will be set to 0s on success. */
+static void
+check_mem_space_write (const void *addr_, const size_t size) {
+	uint8_t *addr = (uint8_t*)addr_;
+
+	if (addr == NULL)
+		thread_exit (-1);
+	/* Check the SIZE-bytes of memory starting at ADDR. */
+	for (size_t i = 0; i < size; i++) {
+		if (!is_user_vaddr(addr) || !put_user (addr, 0))
+			thread_exit (-1);
+		addr++;
+	}
+}
+
+/* Writes BYTE to user address UDST.
+ * UDST must be below KERN_BASE.
+ * Returns true if successful, false if a segfault occurred. */
+static bool
+put_user (uint8_t *udst, uint8_t byte) {
+	int64_t error_code;
+	__asm __volatile (
+		"movabsq $done_put, %0\n"
+		"movb %b2, %1\n"
+		"done_put:\n"
+		: "=&a" (error_code), "=m" (*udst) : "q" (byte));
+	return error_code != -1;
+}
+
 //UNCOMMENT WHEN USED
-
-//static void
-//check_address (void *addr) {
-//	if (!is_user_vaddr(addr)) /* addr is not in user va. */
-//		thread_exit (-1);
-//}
-
 
 /* Reads a byte at user virtual address UADDR.
  * UADDR must be below KERN_BASE.
