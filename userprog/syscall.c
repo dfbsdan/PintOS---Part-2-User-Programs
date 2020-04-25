@@ -68,7 +68,7 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f) {
-	ASSERT (thread_is_user ());
+	ASSERT (thread_is_user (thread_current ()));
 	switch (f->R.rax) {
 		case SYS_HALT:
 			syscall_halt ();
@@ -167,7 +167,7 @@ syscall_fork (const char *thread_name) {
 	if (thread_name == NULL)
 		return -1;
 	check_mem_space_read (thread_name, 0, true);
-	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////Not implemented
+	return (int)process_fork (thread_name);
 }
 
 /* Change current process to the executable whose name is given in
