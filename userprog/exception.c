@@ -83,7 +83,6 @@ kill (struct intr_frame *f) {
 		case SEL_UCSEG:
 			/* User's code segment, so it's a user exception, as we
 			   expected.  Kill the user process.  */
-			printf("USER SEGFAULT\n");
 			thread_exit (-1);
 			/* DEBUGGING PURPOSES */
 			/*printf ("%s: dying due to interrupt %#04llx (%s).\n",

@@ -364,6 +364,8 @@ void
 thread_exit (int status) {
 	ASSERT (!intr_context ());
 
+	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////////temporal
+
 	intr_disable ();
 #ifdef USERPROG
 	process_exit (status);
