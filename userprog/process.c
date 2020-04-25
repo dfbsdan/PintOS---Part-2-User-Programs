@@ -289,8 +289,7 @@ process_exit (int status) {
 	if (thread_is_user ()) {
 		ASSERT (curr->executable);
 		ASSERT (curr->fd_t.table);
-		ASSERT (curr->fd_t.table.size <= MAX_FD + 1);
-		ASSERT (curr->fd_t.table.max_open_fd <= MAX_FD && curr->fd_t.table.max_open_fd >= -1);
+		ASSERT (curr->fd_t.size <= MAX_FD + 1);
 		file_close(curr->executable);
 		/* Report termination to parent, if any. */
 		if (curr->parent) {
@@ -304,18 +303,19 @@ process_exit (int status) {
 			list_push_back (&curr->parent->terminated_children_st, &child_st->elem);
 		}
 		/* Destroy file descriptor table. */
-		for (int i = 0; i <= curr->fd_t.max_open_fd; i++) {
+		for (int i = 0; i <= MAX_FD; i++) {
 			fd = &curr->fd_t.table[i];
 			switch (fd->fd_st) {
 				case FD_OPEN:
 					if (fd->file == NULL) {
-						ASSERT (i <= 2);
+						ASSERT (fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT);
 						break;
 					}
+					ASSERT (fd->fd_t == FDT_OTHER);
 					file_close (fd->file);
 					break;
 				case FD_CLOSE:
-					ASSERT (fd->file == NULL);
+					ASSERT (fd->fd_t == FDT_OTHER && fd->file == NULL);
 					break;
 				default:
 					ASSERT (0);

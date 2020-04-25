@@ -217,8 +217,7 @@ syscall_create (const char *file, unsigned initial_size) {
 
 /* Deletes the file called file. Returns true if successful, false
  * otherwise. A file may be removed regardless of whether it is open or
- * closed, and removing an open file does not close it. See Removing an
- * Open File in FAQ for details. */
+ * closed, and removing an open file does not close it. */
 static bool
 syscall_remove (const char *file) {
 	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
@@ -236,9 +235,7 @@ syscall_remove (const char *file) {
  * single file is opened more than once, whether by a single process or
  * different processes, each open returns a new file descriptor. Different
  * file descriptors for a single file are closed independently in separate
- * calls to close and they do not share a file position. You should follow
- * the linux scheme, which returns integer starting from zero, to do the
- * extra. */
+ * calls to close and they do not share a file position. */
 static int
 syscall_open (const char *file) {
 	struct file *f;
@@ -258,9 +255,8 @@ create_file_descriptor (struct file *file) {
 	struct file_descriptor *fd;
 
 	ASSERT (file);
-	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
-	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
 
 	if (fd_t->size == MAX_FD + 1) { /* Full table. */
 		file_close (file);
@@ -272,15 +268,15 @@ create_file_descriptor (struct file *file) {
 		switch (fd->fd_st) {
 			case FD_OPEN:
 				if (fd->file == NULL)
-					ASSERT (i <= 2);
+					ASSERT (fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT);
+				else
+					ASSERT (fd->fd_t == FDT_OTHER);
 				break;
 			case FD_CLOSE:
-				ASSERT (fd->file == NULL);
+				ASSERT (fd->fd_t == FDT_OTHER && fd->file == NULL);
 				fd->fd_st = FD_OPEN;
 				fd->file = file;
 				fd_t->size++;
-				if (i > fd_t->max_open_fd)
-					fd_t->max_open_fd = i;
 				return i;
 			default:
 				ASSERT (0);
@@ -295,22 +291,24 @@ syscall_filesize (int fd) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
 
-	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
-	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
 
 	if (fd < 0 || fd > MAX_FD)
 		return -1;
 	file_descriptor = &fd_t->table[fd];
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
-			if (file_descriptor->file == NULL) { /* stdin, stdout or stderr. */
-				ASSERT (fd <= 2);
+			if (file_descriptor->file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
 				return -1;
 			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
 			return (int)inode_length (file_descriptor->file->inode);
 		case FD_CLOSE:
-			ASSERT (file_descriptor->file == NULL);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->file == NULL);
 			return -1;
 		default:
 			ASSERT (0);
@@ -318,7 +316,7 @@ syscall_filesize (int fd) {
 	ASSERT (0); /* Should not be reached. */
 }
 
-/* Reads size bytes from the file open as fd into buffer. Returns the
+/* Reads length bytes from the file open as fd into buffer. Returns the
  * number of bytes actually read (0 at end of file), or -1 if the file
  * could not be read (due to a condition other than end of file). fd 0
  * reads from the keyboard using input_getc(). */
@@ -328,26 +326,28 @@ syscall_read (int fd, void *buffer, unsigned length) {
 	struct file_descriptor *file_descriptor;
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
-	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
-	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
 
 	if (fd < 0 || fd > MAX_FD)
 		return -1;
 	file_descriptor = &fd_t->table[fd];
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
-			if (file_descriptor->file == NULL) { /* stdin, stdout or stderr. */
-				ASSERT (fd <= 2);
-				if (fd >= 1) /* stdout or stderr. */
+			if (file_descriptor->file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				if (file_descriptor->fd_t == FDT_STDOUT)
 					return -1;
-				//TODO: Read from stdin
+				///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Read from stdin
 				return ;
 			}
-			//TODO: Read from file
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Read from file
 			return ;
 		case FD_CLOSE:
-			ASSERT (file_descriptor->file == NULL);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->file == NULL);
 			return -1;
 		default:
 			ASSERT (0);
@@ -357,42 +357,42 @@ syscall_read (int fd, void *buffer, unsigned length) {
 
 /* Writes size bytes from buffer to the open file fd. Returns the number
  * of bytes actually written, which may be less than size if some bytes
-* could not be written. Writing past end-of-file would normally extend the
-* file, but file growth is not implemented by the basic file system. The
-* expected behavior is to write as many bytes as possible up to end-of-
-* file and return the actual number written, or 0 if no bytes could be
-* written at all. fd 1 writes to the console. Your code to write to the
-* console should write all of buffer in one call to putbuf(), at least as
-* long as size is not bigger than a few hundred bytes (It is reasonable to
-* break up larger buffers). Otherwise, lines of text output by different
-* processes may end up interleaved on the console, confusing both human
-* readers and our grading scripts. */
+* could not be written (end-of-file reached), 0 meaning no bytes written
+* at all. Writing past end-of-file would normally extend the file, but
+* file growth is not implemented by the basic file system.
+* fd 1 writes to the console (stdout).
+Your code to write to the console should write all of buffer in one call to putbuf(), at least as
+long as size is not bigger than a few hundred bytes (It is reasonable to break up larger buffers).
+Otherwise, lines of text output by different processes may end up interleaved on the console,
+confusing both human readers and our grading scripts. */
 static int
 syscall_write (int fd, const void *buffer, unsigned length) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
-	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
-	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
 
 	if (fd < 0 || fd > MAX_FD)
 		return -1;
 	file_descriptor = &fd_t->table[fd];
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
-			if (file_descriptor->file == NULL) { /* stdin, stdout or stderr. */
-				ASSERT (fd <= 2);
-				if (fd == 0) /* stdin. */
+			if (file_descriptor->file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				if (file_descriptor->fd_t == FDT_STDIN)
 					return -1;
-				//TODO: Write to stdout or stderr stream
+				///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Write to stdout stream
 				return ;
 			}
-			//TODO: Write to file
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Write to file
 			return ;
 		case FD_CLOSE:
-			ASSERT (file_descriptor->file == NULL);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->file == NULL);
 			return -1;
 		default:
 			ASSERT (0);
@@ -410,17 +410,68 @@ syscall_write (int fd, const void *buffer, unsigned length) {
  * semantics are implemented in the file system and do not require any
  * special effort in system call implementation. */
 static void
-syscall_seek (int fd UNUSED, unsigned position UNUSED) {
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
-	ASSERT (0);
+syscall_seek (int fd, unsigned position) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	//////////////////////////////////////////////////////////////////////////////////////////////REMAINDER: position greater than eof treated as eof
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return -1;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				return -1;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Change file offset
+			return ;
+		case FD_CLOSE:
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Returns the position of the next byte to be read or written in open
 * file fd, expressed in bytes from the beginning of the file. */
 static unsigned
-syscall_tell (int fd UNUSED) {
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check argument
-	ASSERT (0);
+syscall_tell (int fd) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return -1;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				return -1;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Get file offset
+			return ;
+		case FD_CLOSE:
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Closes file descriptor fd. Exiting or terminating a process implicitly
@@ -431,9 +482,8 @@ syscall_close (int fd) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
 
-	ASSERT (thread_is_user () && fd_t->table);
+	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
-	ASSERT (fd_t->max_open_fd <= MAX_FD && fd_t->max_open_fd >= -1);
 
 	if (fd < 0 || fd > MAX_FD)
 		return;
@@ -441,14 +491,17 @@ syscall_close (int fd) {
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			file_descriptor->fd_st = FD_CLOSE;
-			if (file_descriptor->file == NULL) { /* stdin, stdout or stderr. */
-				ASSERT (fd <= 2);
+			if (file_descriptor->file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
 				return;
 			}
-			//TODO: Close file
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Close file
 			return ;
 		case FD_CLOSE:
-			ASSERT (file_descriptor->file == NULL);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->file == NULL);
 			return;
 		default:
 			ASSERT (0);
@@ -472,9 +525,42 @@ syscall_close (int fd) {
  * modified by using seek on one of the descriptors, the offset is also
  * changed for the other. */
 static int
-syscall_dup2 (int oldfd UNUSED, int newfd UNUSED) {
-	///////////////////////////////////////////////////////////////////////////////////////////////////////TODO: Check arguments
-	ASSERT (0);
+syscall_dup2 (int oldfd, int newfd) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *old_file_descriptor, *new_file_descriptor;
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (oldfd < 0 || oldfd > MAX_FD || newfd < 0 || newfd > MAX_FD)
+		return -1;
+	old_file_descriptor = &fd_t->table[oldfd];
+	switch (old_file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (old_file_descriptor->file == NULL)
+				ASSERT (old_file_descriptor->fd_t == FDT_STDIN
+						|| old_file_descriptor->fd_t == FDT_STDOUT);
+			else
+				ASSERT (old_file_descriptor->fd_t == FDT_OTHER);
+			if (oldfd == newfd)
+				return newfd;
+			syscall_close (newfd);
+			new_file_descriptor = &fd_t->table[newfd];
+			ASSERT (new_file_descriptor->fd_st == FD_CLOSE
+					&& new_file_descriptor->fd_t == FDT_OTHER
+					&& new_file_descriptor->file == NULL);
+			new_file_descriptor->fd_st = FD_OPEN;
+			new_file_descriptor->fd_t = old_file_descriptor->fd_t;
+			new_file_descriptor->file = old_file_descriptor->file;
+			return newfd;
+		case FD_CLOSE:
+			ASSERT (old_file_descriptor->fd_t == FDT_OTHER
+					&& old_file_descriptor->file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 //UNCOMMENT WHEN USED

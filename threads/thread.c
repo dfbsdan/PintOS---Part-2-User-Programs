@@ -661,18 +661,27 @@ init_thread (struct thread *t, const char *name, int priority,
 /* Initializes the file descriptor table of a process. */
 static void
 init_fd_table (struct fd_table *fd_t) {
+	struct file_descriptor *fd;
 	int i;
 
 	ASSERT (fd_t);
 
-	fd_t->size = 3; /* Default: 0: stdin, 1: stdout, 2: stderr. */
-	fd_t->max_open_fd = 2; /* I.e. stderr. */
+	fd_t->size = 2; /* Default: 0: stdin, 1: stdout. */
 	fd_t->table = (struct file_descriptor*)calloc (MAX_FD + 1, sizeof (struct file_descriptor));
 	ASSERT (fd_t->table);
-	for (i = 0; i <= 2; i++)
-		fd_t->table[i].fd_st = FD_OPEN;
-	for (i = 3; i <= MAX_FD; i++)
-		fd_t->table[i].fd_st = FD_CLOSE;
+	/* Open stdin and stdout. */
+	fd = &fd_t->table[0];
+	fd->fd_st = FD_OPEN;
+	fd->fd_t = FDT_STDIN;
+	fd = &fd_t->table[1];
+	fd->fd_st = FD_OPEN;
+	fd->fd_t = FDT_STDOUT;
+	/* Initialize remaining fds. */
+	for (i = 2; i <= MAX_FD; i++) {
+		fd = &fd_t->table[i];
+		fd->fd_st = FD_CLOSE;
+		fd->fd_t = FDT_OTHER;
+	}
 }
 #endif
 

@@ -16,14 +16,20 @@
 /* Allowed states of a file descriptor. */
 enum fd_status {FD_CLOSE, FD_OPEN};
 
+/* Allowed types of file descriptor. */
+enum fd_type {FDT_STDIN, FDT_STDOUT, FDT_OTHER};
+
 /* File descriptor structure. */
 struct file_descriptor {
 	/* Status of the file descriptor. */
 	enum fd_status fd_st;
+	/* Type of the file descriptor. If the fd is closed or open and
+		 associated with a file, this has to be FDT_OTHER, if open and not
+		 associated, either FDT_STDIN or FDT_STDOUT. */
+	enum fd_type fd_t;
 	/* File associated with the fd. If the fd is open, this has to be a
-		 valid file pointer unless its associated index (see struct fd_table's
-		 table) is 0, 1 or 2, which by default refer to stdin, stdout and
-		 stderr, respectively. If the fd is closed, FILE is always NULL */
+		 valid file pointer unless its type is FDT_STDIN or FDT_STDOUT.
+		 If the fd is closed, FILE is always NULL */
 	struct file *file;
 };
 
@@ -31,13 +37,9 @@ struct file_descriptor {
 struct fd_table {
 	/* Keeps track of the number of opened file descriptors. */
 	size_t size;
-	/* Keeps track of the greatest opened fd of the process. */
-	int max_open_fd;
 	/* File descriptor table of a process.
 		 Each index corresponds to a file descriptor in the range [0, MAX_FD],
-		 inclusive.
-		 By design, the 0th, 1th and 2nd file descriptors can be the only ones
-		 in open state with a NULL associated file pointer. */
+		 inclusive. */
 	struct file_descriptor *table;
 };
 #endif
