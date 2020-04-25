@@ -11,6 +11,7 @@
 #include "threads/vaddr.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "devices/input.h"
 #include "intrinsic.h"
 
 void syscall_entry (void);
