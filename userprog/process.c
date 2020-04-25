@@ -151,6 +151,7 @@ __do_fork (void *aux) {
 
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&current->tf, parent_if, sizeof (struct intr_frame));
+	current->tf.R.rax = 0;
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
