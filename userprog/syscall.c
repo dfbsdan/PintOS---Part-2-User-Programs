@@ -51,6 +51,7 @@ static void check_mem_space_read (const void *addr_, const size_t size, const bo
 static void check_mem_space_write (const void *addr_, const size_t size);
 static int64_t get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
+static bool valid_user_addr (const uint8_t *addr);
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void
@@ -599,19 +600,19 @@ check_mem_space_read (const void *addr_, const size_t size, const bool is_str) {
 	if (is_str) { /* String assumed. */
 		ASSERT (size == 0);
 		/* Check the first byte pointed to by ADDR. */
-		if (!is_user_vaddr(addr) || get_user (addr) == -1)
+		if (!valid_user_addr (addr) || get_user (addr) == -1)
 			thread_exit (-1);
 		/* Check each byte of memory starting at ADDR+1 until NULL is found. */
 		while (*addr) {
 			addr++;
-			if (!is_user_vaddr(addr) || get_user (addr) == -1)
+			if (!valid_user_addr (addr) || get_user (addr) == -1)
 				thread_exit (-1);
 		}
 	}
 	else {
 		/* Check the SIZE-bytes of memory starting at ADDR. */
 		for (size_t i = 0; i < size; i++) {
-			if (!is_user_vaddr(addr) || get_user (addr) == -1)
+			if (!valid_user_addr (addr) || get_user (addr) == -1)
 				thread_exit (-1);
 			addr++;
 		}
@@ -645,7 +646,7 @@ check_mem_space_write (const void *addr_, const size_t size) {
 		thread_exit (-1);
 	/* Check the SIZE-bytes of memory starting at ADDR. */
 	for (size_t i = 0; i < size; i++) {
-		if (!is_user_vaddr(addr) || !put_user (addr, 0))
+		if (!valid_user_addr (addr) || !put_user (addr, 0))
 			thread_exit (-1);
 		addr++;
 	}
@@ -665,27 +666,11 @@ put_user (uint8_t *udst, uint8_t byte) {
 	return error_code != -1;
 }
 
-//UNCOMMENT WHEN USED
-
-/* Reads a byte at user virtual address UADDR.
- * UADDR must be below KERN_BASE.
- * Returns the byte value if successful, -1 if a segfault
- * occurred. */
-//static int
-//get_user (const uint8_t *uaddr) {
-    //int result;
-    //asm ("movl $1f, %0; movzbl %1, %0; 1:"
-         //: "=&a" (result) : "m" (*uaddr));
-    //return result;
-//}
-
-/* Writes BYTE to user address UDST.
- * UDST must be below KERN_BASE.
- * Returns true if successful, false if a segfault occurred. */
-//static bool
-//put_user (uint8_t *udst, uint8_t byte) {
-    //int error_code;
-    //asm ("movl $1f, %0; movb %b2, %1; 1:"
-    //: "=&a" (error_code), "=m" (*udst) : "q" (byte));
-    //return error_code != -1;
-//}
+/* Checks if the given ADDR is in the user address space and mapped to a
+	 kernel page. Returns TRUE if these two conditions are true, FALSE
+	 otherwise. */
+static bool
+valid_user_addr (const uint8_t *addr) {
+	struct thread *curr = thread_current ();
+	return (is_user_vaddr(addr) && pml4_get_page (curr->pml4, addr) != NULL);
+}
