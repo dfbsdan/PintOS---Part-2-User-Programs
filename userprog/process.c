@@ -188,7 +188,8 @@ error:
 }
 
 /* Duplicates the given PARENT FD TABLE into the current thread's. */
-static void duplicate_fd_table (struct fd_table *parent_fd_t) {
+static void
+duplicate_fd_table (struct fd_table *parent_fd_t) {
 	struct fd_table *curr_fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *parent_fd, *curr_fd;
 	enum intr_level old_level;
