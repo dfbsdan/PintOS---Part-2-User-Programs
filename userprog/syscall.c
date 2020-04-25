@@ -265,9 +265,9 @@ create_file_descriptor (struct file *file) {
 		fd = &fd_t->table[i];
 		switch (fd->fd_st) {
 			case FD_OPEN:
-				if (fd->file == NULL)
+				if (fd->file == NULL) {
 					ASSERT (fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT);
-				else
+				} else
 					ASSERT (fd->fd_t == FDT_OTHER);
 				break;
 			case FD_CLOSE:
@@ -544,10 +544,10 @@ syscall_dup2 (int oldfd, int newfd) {
 	old_file_descriptor = &fd_t->table[oldfd];
 	switch (old_file_descriptor->fd_st) {
 		case FD_OPEN:
-			if (old_file_descriptor->file == NULL)
+			if (old_file_descriptor->file == NULL) {
 				ASSERT (old_file_descriptor->fd_t == FDT_STDIN
 						|| old_file_descriptor->fd_t == FDT_STDOUT);
-			else
+			} else
 				ASSERT (old_file_descriptor->fd_t == FDT_OTHER);
 			if (oldfd == newfd)
 				return newfd;
