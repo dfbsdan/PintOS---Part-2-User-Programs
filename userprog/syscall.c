@@ -46,13 +46,11 @@ static unsigned syscall_tell (int fd);
 static void syscall_close (int fd);
 static int syscall_dup2 (int oldfd, int newfd);
 static int create_file_descriptor (struct file *file);
-////////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
 static void check_mem_space_read (const void *addr_, const size_t size, const bool is_str);
 static void check_mem_space_write (const void *addr_, const size_t size);
 static int64_t get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
 static bool valid_user_addr (const uint8_t *addr);
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void
 syscall_init (void) {
@@ -672,5 +670,5 @@ put_user (uint8_t *udst, uint8_t byte) {
 static bool
 valid_user_addr (const uint8_t *addr) {
 	struct thread *curr = thread_current ();
-	return (is_user_vaddr(addr) && pml4_get_page (curr->pml4, addr) != NULL);
+	return (is_user_vaddr(addr) && pml4_get_page (curr->pml4, addr) != NULL && is_user_pte (addr));
 }
