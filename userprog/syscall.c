@@ -303,7 +303,7 @@ syscall_filesize (int fd) {
 				return -1;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			return (int)inode_length (file_descriptor->fd_file->inode);
+			return (int)inode_length (file_get_inode (file_descriptor->fd_file));
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->fd_file == NULL);
