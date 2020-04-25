@@ -167,7 +167,9 @@ static int
 syscall_fork (const char *thread_name) {
 	if (thread_name == NULL)
 		return -1;
+	printf("FORK: About to check mem space\n");
 	check_mem_space_read (thread_name, 0, true);
+	printf("FORK: Checked mem space\n");
 	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////Not implemented
 }
 
@@ -181,7 +183,9 @@ static int
 syscall_exec (const char *cmd_line) {
 	if (cmd_line == NULL)
 		thread_exit (-1);
+	printf("EXEC: About to check mem space\n");
 	check_mem_space_read (cmd_line, 0, true);
+	printf("EXEC: Checked mem space\n");
 	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////Not implemented
 }
 
@@ -214,7 +218,9 @@ syscall_wait (int pid) {
 * require a open system call. */
 static bool
 syscall_create (const char *file, unsigned initial_size) {
+	printf("CREATE: About to check mem space\n");
 	check_mem_space_read (file, 0, true);
+	printf("CREATE: Checked mem space\n");
 	return filesys_create(file, initial_size);
 }
 
@@ -225,7 +231,9 @@ static bool
 syscall_remove (const char *file) {
 	if (file == NULL)
 		return false;
+	printf("REMOVE: About to check mem space\n");
 	check_mem_space_read (file, 0, true);
+	printf("REMOVE: Checked mem space\n");
 	return filesys_remove(file);
 }
 
@@ -247,7 +255,9 @@ syscall_open (const char *file) {
 
 	if (file == NULL)
 		return -1;
+	printf("OPEN: About to check mem space\n");
 	check_mem_space_read (file, 0, true);
+	printf("OPEN: Checked mem space\n");
 	f = filesys_open (file);
 	if (f == NULL)
 		return -1;
@@ -337,7 +347,9 @@ syscall_read (int fd, void *buffer, unsigned length) {
 
 	if (buffer == NULL)
 		return -1;
+	printf("READ: About to check mem space\n");
 	check_mem_space_read (buffer, length, false);
+	printf("READ: Checked mem space\n");
 
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
@@ -385,7 +397,9 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 
 	if (buffer == NULL)
 		return -1;
+	printf("WRITE: About to check mem space\n");
 	check_mem_space_write (buffer, length);
+	printf("WRITE: Checked mem space\n");
 
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
