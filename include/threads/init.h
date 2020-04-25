@@ -15,6 +15,8 @@ extern uint64_t *base_pml4;
 /* -q: Power off when kernel tasks complete? */
 extern bool power_off_when_done;
 
+bool thread_tests;
+
 void power_off (void) NO_RETURN;
 
 #endif /* threads/init.h */
