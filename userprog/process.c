@@ -287,10 +287,12 @@ process_exit (int status) {
 
 	curr->exit_status = status;
 	if (thread_is_user ()) {
-		ASSERT (curr->executable);
 		ASSERT (curr->fd_t.table);
 		ASSERT (curr->fd_t.size <= MAX_FD + 1);
-		file_close(curr->executable);
+		if (!thread_tests) {
+			ASSERT (curr->executable);
+			file_close(curr->executable);
+		}
 		/* Report termination to parent, if any. */
 		if (curr->parent) {
 			/* Remove from parent's active_children list. */
