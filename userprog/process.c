@@ -92,14 +92,8 @@ process_fork (const char *name, struct intr_frame *if_) {
 	child_tid = thread_create (name, PRI_DEFAULT, __do_fork, &parent_frame);
 	if (child_tid == TID_ERROR)
 		return TID_ERROR;
-
-	printf("PROCESS_FORK: child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////////////////////DEBUGGING
-
 	/* Wait for child to finish forking. */
 	sema_down (&curr->fork_sema);
-
-	printf("PROCESS_FORK: child finished! child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////DEBUGGING
-
 	return child_tid;
 }
 
@@ -164,7 +158,8 @@ __do_fork (void *aux) {
 
 	/* Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
-	if_.R.rax = 0;/////////////////////////////////////////////////////////////////////////////////////////TESTING: Return 0 in fork system call?
+	/* Return 0 on child's fork() call. */
+	if_.R.rax = 0;
 
 	/* Duplicate PT */
 	current->pml4 = pml4_create();
@@ -304,10 +299,8 @@ process_wait (tid_t child_tid) {
 	struct terminated_child_st *child_st;
 	int exit_status;
 
-	if (!terminated_child (child_tid) && !active_child (child_tid)) {
-		printf("PROCESS_WAIT: %s' INVALID CHILD\n", thread_name ()); ////////////////////////////////////////////////////////////////////////DEBUGGING
+	if (!terminated_child (child_tid) && !active_child (child_tid))
 		return -1;
-	}
 	while (active_child (child_tid) && !terminated_child (child_tid))
 		thread_yield (); //Wait for child's termination
 	/* Get child's exit status. */
@@ -317,7 +310,6 @@ process_wait (tid_t child_tid) {
 	/* Clean up. */
 	list_remove (&child_st->elem);
 	free (child_st);
-	printf("PROCESS_WAIT: %s' child finished\n", thread_name ()); /////////////////////////////////////////////////////////////////////////DEBUGGING
 	return exit_status;
 }
 
@@ -385,7 +377,6 @@ process_exit (int status) {
 
 	ASSERT (intr_get_level () == INTR_OFF);
 
-	printf("TERMINATING: %s\n", curr->name);//////////////////////////////////////////////////////////////////////////////////DEBUGGING
 	curr->exit_status = status;
 	if (thread_is_user (curr)) {
 		ASSERT (curr->fd_t.table);

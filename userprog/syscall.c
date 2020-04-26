@@ -164,19 +164,12 @@ syscall_exit (int status) {
  * virtual address). */
 static int
 syscall_fork (const char *thr_name, struct intr_frame *f) {
-	tid_t child_tid;
-
 	ASSERT (f);
 
 	if (thr_name == NULL)
 		return -1;
 	check_mem_space_read (thr_name, 0, true);
-
-	child_tid = process_fork (thr_name, f);
-
-	printf("SYSCALL_FORK: child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////////////////////DEBUGGING
-
-	return child_tid;
+	return process_fork (thr_name, f);
 }
 
 /* Change current process to the executable whose name is given in
