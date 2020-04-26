@@ -183,7 +183,7 @@ syscall_exec (const char *cmd_line) {
 	if (cmd_line == NULL)
 		thread_exit (-1);
 	check_mem_space_read (cmd_line, 0, true);
-	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////Not implemented
+	return process_exec (cmd_line);
 }
 
 /* Waits for a child process pid and retrieves the child's exit status.

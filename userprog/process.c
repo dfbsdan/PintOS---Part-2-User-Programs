@@ -81,6 +81,7 @@ tid_t
 process_fork (const char *name, struct intr_frame *if_) {
 	struct thread *curr = thread_current ();
 	tid_t child_tid;
+	struct terminated_child_st *child_st;
 	struct parent_process_frame parent_frame;
 
 	ASSERT (curr->fork_sema.value == 0);
@@ -94,6 +95,15 @@ process_fork (const char *name, struct intr_frame *if_) {
 		return TID_ERROR;
 	/* Wait for child to finish forking. */
 	sema_down (&curr->fork_sema);
+	/* Check if the child finished with some error. */
+	if (!active_child (child_tid)) {
+		child_st = terminated_child (child_tid);
+		ASSERT (child_st);
+		if (child_st->exit_status == -1) {
+			process_wait (child_tid);
+			return TID_ERROR;
+		}
+	}
 	return child_tid;
 }
 
@@ -260,6 +270,8 @@ process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
 
+	ASSERT (0);//////////////////////////////////////////////////////////////////////////////////////////Not finished
+
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
@@ -346,7 +358,8 @@ terminated_child (tid_t child_tid) {
  * corresponds to a current thread's active child's tid by looking at
  * its active_children list. If such child is found returns TRUE, otherwise
  * FALSE. */
-static bool active_child (tid_t child_tid) {
+static bool
+active_child (tid_t child_tid) {
 	struct thread *child, *curr = thread_current ();
 	struct list_elem *child_elem;
 	enum intr_level old_level;
