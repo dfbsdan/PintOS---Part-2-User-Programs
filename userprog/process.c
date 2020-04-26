@@ -114,22 +114,29 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *newpage;
 	bool writable;
 
-	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
+	/* If the parent_page is kernel page, then return immediately (skip). */
+	if (is_kern_pte (pte))
+		return true;
 
-	/* 2. Resolve VA from the parent's page map level 4. */
+	/* Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
 
-	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
-	 *    TODO: NEWPAGE. */
+	/* Allocate new PAL_USER page for the child and set result to NEWPAGE. */
+	newpage = palloc_get_page (PAL_USER);
+	if (newpage == NULL)
+		return false;
 
-	/* 4. TODO: Duplicate parent's page to the new page and
-	 *    TODO: check whether parent's page is writable or not (set WRITABLE
-	 *    TODO: according to the result). */
+	/* Duplicate parent's page to the new page and check whether parent's
+	 * page is writable or not (set WRITABLE according to the result). */
+	memcpy (newpage, parent_page, PGSIZE);
+	writable = is_writable (pte);
 
-	/* 5. Add new page to child's page table at address VA with WRITABLE
-	 *    permission. */
+	/* Add new page to child's page table at address VA with WRITABLE
+	 * permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
-		/* 6. TODO: if fail to insert page, do error handling. */
+		/* Fail to insert page. */
+		palloc_free_page (newpage);
+		return false;
 	}
 	return true;
 }
@@ -145,6 +152,7 @@ __do_fork (void *aux) {
 
 	parent_frame = (struct parent_process_frame *)aux;
 	parent = parent_frame->parent;
+	/* Pass the parent_if. (i.e. process_fork()'s if_) */
 	parent_if = parent_frame->f;
 
 	ASSERT (thread_is_user (parent));
@@ -154,22 +162,10 @@ __do_fork (void *aux) {
 	while (list_size (&parent->fork_sema.waiters) == 0)
 		thread_yield ();
 
-	/* Duplicate parent's executable file and deny write on it. */
-	current->executable = file_reopen (parent->executable);
-	ASSERT (current->executable);
-	file_deny_write (current->executable);
-
-	sema_up (&parent->fork_sema);///////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING: Wake up parent
-	printf("__DO_FORK: curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);///////////////////////////////DEBUGGING
-	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
-
-	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	bool succ = true;
-
-	/* 1. Read the cpu context to local stack. */
+	/* Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
 
-	/* 2. Duplicate PT */
+	/* Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
@@ -184,6 +180,12 @@ __do_fork (void *aux) {
 		goto error;
 #endif
 
+	/* Reopen parent's executable file and deny write on it. */
+	current->executable = file_reopen (parent->executable);
+	if (current->executable == NULL)
+		goto error;
+	file_deny_write (current->executable);
+
 	/* TODO: Your code goes here.
 	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
@@ -192,10 +194,16 @@ __do_fork (void *aux) {
 
 	process_init ();
 
-	/* Finally, switch to the newly created process. */
-	if (succ)
-		do_iret (&if_);
+	printf("__DO_FORK: curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);///////////////////////////////DEBUGGING
+	goto error;/////////////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
+
+	/* Finally, switch to the newly created process and wake up parent.
+		 This part should be reched ONLY on a successful forking. */
+	sema_up (&parent->fork_sema);
+	do_iret (&if_);
+	ASSERT (0); /* Should not be reached. */
 error:
+	sema_up (&parent->fork_sema);
 	thread_exit (-1);
 }
 
@@ -359,8 +367,10 @@ process_exit (int status) {
 		}
 		free (curr->fd_t.table);
 		if (!thread_tests) {
-			ASSERT (curr->executable);
-			file_close(curr->executable);
+			if (curr->executable)
+				file_close(curr->executable);
+			else //Debugging purposes
+				ASSERT (status == -1);
 			/* Print exit status. */
 			printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
 		}
