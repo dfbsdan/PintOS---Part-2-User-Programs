@@ -32,7 +32,7 @@ void syscall_handler (struct intr_frame *);
 
 static void syscall_halt (void);
 static void syscall_exit (int status);
-static int syscall_fork (const char *thread_name, struct intr_frame *f);
+static int syscall_fork (const char *thr_name, struct intr_frame *f);
 static int syscall_exec (const char *cmd_line);
 static int syscall_wait (int pid);
 static bool syscall_create (const char *file, unsigned initial_size);
@@ -163,16 +163,16 @@ syscall_exit (int status) {
  * but you need to fill missing parts of passed pte_for_each_func (See
  * virtual address). */
 static int
-syscall_fork (const char *thread_name, struct intr_frame *f) {
+syscall_fork (const char *thr_name, struct intr_frame *f) {
 	tid_t child_tid;
 
 	ASSERT (f);
 
-	if (thread_name == NULL)
+	if (thr_name == NULL)
 		return -1;
-	check_mem_space_read (thread_name, 0, true);
+	check_mem_space_read (thr_name, 0, true);
 
-	child_tid = process_fork (thread_name, f);
+	child_tid = process_fork (thr_name, f);
 
 	printf("SYSCALL_FORK: child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////////////////////DEBUGGING
 	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
