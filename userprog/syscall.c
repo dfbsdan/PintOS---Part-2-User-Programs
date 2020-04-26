@@ -286,6 +286,7 @@ create_file_descriptor (struct file *file) {
 		file_close (file);
 		return -1;
 	}
+	printf("CREATE_FD\n");///////////////////////////////////////////////////////////////////////////////////////////Testing
 	/* Find and return the fd with lowest index available. */
 	for (int i = 0; i <= MAX_FD; i++) {
 		fd = &fd_t->table[i];
@@ -297,6 +298,7 @@ create_file_descriptor (struct file *file) {
 					ASSERT (fd->fd_t == FDT_OTHER);
 				break;
 			case FD_CLOSE:
+				printf("CREATE_FD: fd found: %d\n", i);///////////////////////////////////////////////////////////////////Testing
 				ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL);
 				fd->fd_st = FD_OPEN;
 				fd->fd_file = file;
