@@ -93,10 +93,12 @@ process_fork (const char *name, struct intr_frame *if_) {
 		return TID_ERROR;
 
 	printf("PROCESS_FORK: child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////////////////////DEBUGGING
-	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
 
 	/* Wait for child to finish forking. */
 	sema_down (&curr->fork_sema);
+
+	printf("PROCESS_FORK: child finished! child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////DEBUGGING
+	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
 
 	return child_tid;
 }
@@ -146,7 +148,13 @@ __do_fork (void *aux) {
 	parent_if = parent_frame->f;
 
 	ASSERT (thread_is_user (parent));
+	ASSERT (ASSERT (parent->fork_sema.value == 0));
 
+	/* Make sure parent waits for forking finalization. */
+	while (list_size (&parent->fork_sema.waiters) == 0)
+		thread_yield ();
+
+	sema_up (&parent->fork_sema);///////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING: Wake up parent
 	printf("__DO_FORK: curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);///////////////////////////////DEBUGGING
 	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
 
