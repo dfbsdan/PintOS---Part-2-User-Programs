@@ -519,20 +519,25 @@ syscall_close (int fd) {
 	if (fd < 0 || fd > MAX_FD)
 		return;
 	file_descriptor = &fd_t->table[fd];
+	printf("CLOSE: fd: %d\n", fd);/////////////////////////////////////////////////////////////////////////////////////Testing
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
+			printf("CLOSE: open fd\n");////////////////////////////////////////////////////////////////////////////////////Testing
 			file_descriptor->fd_st = FD_CLOSE;
 			if (file_descriptor->fd_file == NULL) {
+				printf("CLOSE: stdio\n");////////////////////////////////////////////////////////////////////////////////////Testing
 				ASSERT (file_descriptor->fd_t == FDT_STDIN
 						|| file_descriptor->fd_t == FDT_STDOUT);
 				file_descriptor->fd_t = FDT_OTHER;
 				return;
 			}
+			printf("CLOSE: open file\n");//////////////////////////////////////////////////////////////////////////////////Testing
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
 			file_close (file_descriptor->fd_file);
 			file_descriptor->fd_file = NULL;
 			return;
 		case FD_CLOSE:
+			printf("CLOSE: close fd\n");///////////////////////////////////////////////////////////////////////////////////Testing
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->fd_file == NULL);
 			return;
