@@ -652,6 +652,7 @@ init_thread (struct thread *t, const char *name, int priority,
 	}
 	else
 		t->parent = NULL;
+	sema_init (&t->fork_sema, 0);
 	t->exit_status = 0;
 #endif
 	list_push_back (&all_list, &t->all_elem);

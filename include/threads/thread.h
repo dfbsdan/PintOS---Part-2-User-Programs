@@ -10,6 +10,7 @@
 #endif
 
 #ifdef USERPROG
+#include "threads/synch.h"
 
 #define MAX_FD 127 /* Max allowed file descriptor per process. */
 
@@ -155,6 +156,9 @@ struct thread {
 	struct list terminated_children_st;	/* Holds the tids and exit statuses
 	 																			 of terminated children. */
 	struct thread *parent;
+	struct semaphore fork_sema;					/* Used on a fork() system call to
+																				 wake up the calling process once
+																				 the child has finished forking. */
 	/* Owned by userprog/process.c and userprog/syscall.c. */
 	struct fd_table fd_t;								/* Process' file descriptor table. */
 	int exit_status;
