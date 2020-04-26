@@ -99,7 +99,6 @@ process_fork (const char *name, struct intr_frame *if_) {
 	sema_down (&curr->fork_sema);
 
 	printf("PROCESS_FORK: child finished! child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////DEBUGGING
-	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
 
 	return child_tid;
 }
@@ -382,7 +381,7 @@ process_exit (int status) {
 
 	ASSERT (intr_get_level () == INTR_OFF);
 
-	printf("TERMINATING: %s\n", curr->name);///////////////////////////////////////////////////DEBUGGING
+	printf("TERMINATING: %s\n", curr->name);//////////////////////////////////////////////////////////////////////////////////DEBUGGING
 	curr->exit_status = status;
 	if (thread_is_user (curr)) {
 		ASSERT (curr->fd_t.table);
