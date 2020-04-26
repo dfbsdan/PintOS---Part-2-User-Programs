@@ -148,7 +148,7 @@ __do_fork (void *aux) {
 	parent_if = parent_frame->f;
 
 	ASSERT (thread_is_user (parent));
-	ASSERT (ASSERT (parent->fork_sema.value == 0));
+	ASSERT (parent->fork_sema.value == 0);
 
 	/* Make sure parent waits for forking finalization. */
 	while (list_size (&parent->fork_sema.waiters) == 0)
