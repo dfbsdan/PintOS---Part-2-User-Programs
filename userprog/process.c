@@ -193,16 +193,12 @@ __do_fork (void *aux) {
 
 	process_init ();
 
-	printf("DO_FORK: SUCCESS. curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);/////////////////////////////DEBUGGING
-	goto error;//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
-
 	/* Finally, switch to the newly created process and wake up parent.
 		 This part should be reched ONLY on a successful forking. */
 	sema_up (&parent->fork_sema);
 	do_iret (&if_);
 	ASSERT (0); /* Should not be reached. */
 error:
-	printf("DO_FORK: Error handler. curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);///////////////////////DEBUGGING
 	sema_up (&parent->fork_sema);
 	thread_exit (-1);
 }
