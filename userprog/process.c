@@ -77,10 +77,28 @@ initd (void *f_name) {
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t
-process_fork (const char *name, struct intr_frame *if_ UNUSED) {
+process_fork (const char *name, struct intr_frame *if_) {
+	struct thread *curr = thread_current ();
+	tid_t child_tid;
+	struct parent_process_frame parent_frame;
+
+	ASSERT (curr->fork_sema.value == 0);
+	ASSERT (list_size (&curr->fork_sema.waiters) == 0);
+
 	/* Clone current thread to new thread.*/
-	return thread_create (name,
-			PRI_DEFAULT, __do_fork, thread_current ());
+	parent_frame.parent = curr;
+	parent_frame.f = if_;
+	child_tid = thread_create (name, PRI_DEFAULT, __do_fork, &parent_frame);
+	if (child_tid == TID_ERROR)
+		return TID_ERROR;
+
+	printf("PROCESS_FORK: child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////////////////////DEBUGGING
+	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
+
+	/* Wait for child to finish forking. */
+	sema_down (&curr->fork_sema);
+
+	return child_tid;
 }
 
 #ifndef VM
@@ -115,17 +133,24 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 }
 #endif
 
-/* A thread function that copies parent's execution context.
- * Hint) parent->tf does not hold the userland context of the process.
- *       That is, you are required to pass second argument of process_fork to
- *       this function. */
+/* A thread function that copies parent's execution context. */
 static void
 __do_fork (void *aux) {
-	struct intr_frame if_;
-	struct thread *parent = (struct thread *) aux;
+	struct intr_frame if_, *parent_if;
+	struct parent_process_frame *parent_frame;
+	struct thread *parent;
 	struct thread *current = thread_current ();
+
+	parent_frame = (struct parent_process_frame *)aux;
+	parent = parent_frame->parent;
+	parent_if = parent_frame->f;
+
+	ASSERT (thread_is_user (parent));
+
+	printf("__DO_FORK: curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);///////////////////////////////DEBUGGING
+	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
+
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if;
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
@@ -286,7 +311,7 @@ process_exit (int status) {
 	ASSERT (intr_get_level () == INTR_OFF);
 
 	curr->exit_status = status;
-	if (thread_is_user ()) {
+	if (thread_is_user (curr)) {
 		ASSERT (curr->fd_t.table);
 		ASSERT (curr->fd_t.size <= MAX_FD + 1);
 		/* Report termination to parent, if any. */

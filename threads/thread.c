@@ -327,10 +327,11 @@ thread_name (void) {
 /* Returns True if the current thread is an user thread, false
 	 otherwise. */
 bool
-thread_is_user (void)
+thread_is_user (struct thread *t)
 {
-	struct thread *curr = thread_current ();
-	return curr != initial_thread && curr != idle_thread;
+	ASSERT (is_thread (t));
+
+	return t != initial_thread && t != idle_thread;
 }
 
 /* Returns the running thread.

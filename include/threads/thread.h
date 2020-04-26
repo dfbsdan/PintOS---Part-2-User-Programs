@@ -194,7 +194,7 @@ void thread_sleep (void);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
-bool thread_is_user (void);
+bool thread_is_user (struct thread *t);
 
 void thread_exit (int status) NO_RETURN;
 void thread_yield (void);

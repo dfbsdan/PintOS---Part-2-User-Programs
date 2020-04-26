@@ -14,6 +14,13 @@ struct terminated_child_st {
   struct list_elem elem;
 };
 
+/* Holds a pointer to the parent thread as well as the interrupt frame
+   used in a fork() system call. */
+struct parent_process_frame {
+  struct thread *parent;
+  struct intr_frame *f;
+};
+
 tid_t process_create_initd (const char *file_name);
 tid_t process_fork (const char *name, struct intr_frame *if_);
 int process_exec (void *f_name);
