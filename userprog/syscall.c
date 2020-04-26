@@ -182,9 +182,15 @@ syscall_fork (const char *thr_name, struct intr_frame *f) {
  * descriptors remain open across an exec call. */
 static void
 syscall_exec (const char *cmd_line) {
+	struct thread *curr = thread_current ();
 	char *cmd_line_copy;
 
 	check_mem_space_read (cmd_line, 0, true);
+
+	/* Close current executable. */
+	ASSERT (curr->executable);
+	file_close (curr->executable);
+	curr->executable = NULL;
 	/* Make a copy of CMD_LINE. */
 	cmd_line_copy = palloc_get_page (0);
 	if (cmd_line_copy == NULL)

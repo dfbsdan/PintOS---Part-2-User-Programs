@@ -594,6 +594,7 @@ load (const char *command, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	ASSERT (!t->executable);
 	t->executable = file; /* Assign executable file. */
 	file_deny_write(t->executable); /* Deny write. */
 
