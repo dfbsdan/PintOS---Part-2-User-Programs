@@ -30,6 +30,7 @@ static void process_cleanup (void);
 static bool load (const char *command, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
+static bool duplicate_fd_table (struct fd_table *parent_fd_t);
 
 /* General process initializer for initd and other process. */
 static void
@@ -180,22 +181,20 @@ __do_fork (void *aux) {
 		goto error;
 #endif
 
+	/* Duplicate parent's fd table. */
+	if (!duplicate_fd_table (&parent->fd_t))
+		goto error;
+
 	/* Reopen parent's executable file and deny write on it. */
 	current->executable = file_reopen (parent->executable);
 	if (current->executable == NULL)
 		goto error;
 	file_deny_write (current->executable);
 
-	/* TODO: Your code goes here.
-	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
-	 * TODO:       in include/filesys/file.h. Note that parent should not return
-	 * TODO:       from the fork() until this function successfully duplicates
-	 * TODO:       the resources of parent.*/
-
 	process_init ();
 
-	printf("__DO_FORK: curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);///////////////////////////////DEBUGGING
-	goto error;/////////////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
+	printf("DO_FORK: SUCCESS. curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);/////////////////////////////DEBUGGING
+	goto error;//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
 
 	/* Finally, switch to the newly created process and wake up parent.
 		 This part should be reched ONLY on a successful forking. */
@@ -203,8 +202,64 @@ __do_fork (void *aux) {
 	do_iret (&if_);
 	ASSERT (0); /* Should not be reached. */
 error:
+	printf("DO_FORK: Error handler. curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);///////////////////////DEBUGGING
 	sema_up (&parent->fork_sema);
 	thread_exit (-1);
+}
+
+/* Duplicates the given PARENT FD TABLE into the current thread's. Returns
+ * TRUE on success, FALSE otherwise. */
+static bool
+duplicate_fd_table (struct fd_table *parent_fd_t) {
+	struct fd_table *curr_fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *parent_fd, *curr_fd;
+	enum intr_level old_level;
+
+	ASSERT (parent_fd_t);
+	ASSERT (parent_fd_t->table);
+	ASSERT (curr_fd_t);
+	ASSERT (curr_fd_t->table);
+
+	old_level = intr_disable ();
+	/* Set table size. */
+	curr_fd_t->size = parent_fd_t->size;
+
+	/* Copy file descriptors. */
+	for (int i = 0; i <= MAX_FD; i++) {
+		parent_fd = &parent_fd_t->table[i];
+		curr_fd = &curr_fd_t->table[i];
+		/* Check correctness of current thread's fd table. */
+		ASSERT (curr_fd->fd_file == NULL
+				&& ((curr_fd->fd_st == FD_OPEN
+								&& (curr_fd->fd_t == FDT_STDIN || curr_fd->fd_t == FDT_STDOUT))
+						|| (curr_fd->fd_st == FD_CLOSE && curr_fd->fd_t == FDT_OTHER)));
+		/* Copy fd. */
+		curr_fd->fd_st = parent_fd->fd_st;
+		curr_fd->fd_t = parent_fd->fd_t;
+		switch (parent_fd->fd_st) {
+			case FD_OPEN:
+				if (parent_fd->fd_file == NULL) {
+					ASSERT (parent_fd->fd_t == FDT_STDIN || parent_fd->fd_t == FDT_STDOUT);
+				} else { /* Open file. */
+					ASSERT (parent_fd->fd_t == FDT_OTHER);
+					curr_fd->fd_file = file_duplicate (parent_fd->fd_file);
+					if (curr_fd->fd_file == NULL) {
+						curr_fd->fd_st = FD_CLOSE;
+						curr_fd->fd_t = FDT_OTHER;
+						intr_set_level (old_level);
+						return false;
+					}
+				}
+				break;
+			case FD_CLOSE:
+				ASSERT (parent_fd->fd_t == FDT_OTHER && parent_fd->fd_file == NULL);
+				break;
+			default:
+				ASSERT (0);
+		}
+	}
+	intr_set_level (old_level);
+	return true;
 }
 
 /* Switch the current execution context to the f_name.
