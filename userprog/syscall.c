@@ -9,6 +9,7 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/vaddr.h"
+#include "threads/palloc.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "devices/input.h"
@@ -181,7 +182,7 @@ syscall_fork (const char *thr_name, struct intr_frame *f) {
 static void
 syscall_exec (const char *cmd_line) {
 	char *cmd_line_copy;
-	
+
 	check_mem_space_read (cmd_line, 0, true);
 	/* Make a copy of CMD_LINE. */
 	cmd_line_copy = palloc_get_page (0);
