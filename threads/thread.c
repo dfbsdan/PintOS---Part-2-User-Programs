@@ -81,7 +81,7 @@ static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
 static struct thread *next_thread_to_run (void);
-static void init_thread (struct thread *, const char *name, int priority,
+static bool init_thread (struct thread *, const char *name, int priority,
 		int recent_cpu, int nice);
 static void do_schedule(int status);
 static void schedule (void);
@@ -89,7 +89,7 @@ static tid_t allocate_tid (void);
 static void wake_up_threads (void);
 static struct thread *get_max_donor (void);
 #ifdef USERPROG
-static void init_fd_table (struct fd_table *fd_t);
+static bool init_fd_table (struct fd_table *fd_t);
 #endif
 static int mlfqs_calculate_priority (struct thread *t);
 static void mlfqs_update_priorities (void);
@@ -148,7 +148,8 @@ thread_init (void) {
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
-	init_thread (initial_thread, "main", PRI_DEFAULT, 0, 0);
+	if (!init_thread (initial_thread, "main", PRI_DEFAULT, 0, 0))
+		PANIC ("Unable to initialize threading system");
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
 }
@@ -244,7 +245,10 @@ thread_create (const char *name, int priority,
 
 	/* Initialize thread. */
 	curr = thread_current ();
-	init_thread (t, name, priority, curr->recent_cpu, curr->nice);
+	if (!init_thread (t, name, priority, curr->recent_cpu, curr->nice)) {
+		palloc_free_page (t);
+		return TID_ERROR;
+	}
 	tid = t->tid = allocate_tid ();
 
 	/* Call the kernel_thread if it scheduled.
@@ -620,8 +624,8 @@ kernel_thread (thread_func *function, void *aux) {
 
 
 /* Does basic initialization of T as a blocked thread named
-   NAME. */
-static void
+   NAME. Returns TRUE on success, FALSE otherwise. */
+static bool
 init_thread (struct thread *t, const char *name, int priority,
 		int recent_cpu, int nice) {
 	ASSERT (t != NULL);
@@ -649,7 +653,8 @@ init_thread (struct thread *t, const char *name, int priority,
 		t->parent = thread_current ();
 		list_push_back (&t->parent->active_children, &t->active_child_elem);
 		if (t != idle_thread)
-			init_fd_table (&t->fd_t);
+			if (!init_fd_table (&t->fd_t))
+				return false;
 	}
 	else
 		t->parent = NULL;
@@ -657,11 +662,13 @@ init_thread (struct thread *t, const char *name, int priority,
 	t->exit_status = 0;
 #endif
 	list_push_back (&all_list, &t->all_elem);
+	return true;
 }
 
 #ifdef USERPROG
-/* Initializes the file descriptor table of a process. */
-static void
+/* Initializes the file descriptor table of a process. Returns FALSE on
+ 	 error, TRUE otherwise. */
+static bool
 init_fd_table (struct fd_table *fd_t) {
 	struct file_descriptor *fd;
 	int i;
@@ -670,7 +677,8 @@ init_fd_table (struct fd_table *fd_t) {
 
 	fd_t->size = 2; /* Default: 0: stdin, 1: stdout. */
 	fd_t->table = (struct file_descriptor*)calloc (MAX_FD + 1, sizeof (struct file_descriptor));
-	ASSERT (fd_t->table);
+	if (!fd_t->table)
+		return false;
 	/* Open stdin and stdout. */
 	fd = &fd_t->table[0];
 	fd->fd_st = FD_OPEN;
@@ -684,6 +692,7 @@ init_fd_table (struct fd_table *fd_t) {
 		fd->fd_st = FD_CLOSE;
 		fd->fd_t = FDT_OTHER;
 	}
+	return true;
 }
 #endif
 
