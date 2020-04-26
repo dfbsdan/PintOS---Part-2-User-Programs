@@ -18,7 +18,6 @@
 #include "threads/thread.h"
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
-#include "threads/synch.h"
 #include "intrinsic.h"
 #include "devices/timer.h"
 #ifdef VM
@@ -31,7 +30,6 @@ static void process_cleanup (void);
 static bool load (const char *command, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
-static void duplicate_fd_table (struct fd_table *parent_fd_t);
 
 /* General process initializer for initd and other process. */
 static void
@@ -79,19 +77,10 @@ initd (void *f_name) {
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t
-process_fork (const char *name) {
-	struct thread *curr = thread_current ();
-
-	ASSERT (curr->fork_sema.value == 0);
-	ASSERT (list_size (&curr->fork_sema.waiters) == 0);
-
+process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-	tid_t tid = thread_create (name, PRI_DEFAULT, __do_fork, curr);
-	if (tid == TID_ERROR)
-		return tid;
-	/* Wait until creation is finished. */
-	sema_down (&curr->fork_sema);
-	return tid;
+	return thread_create (name,
+			PRI_DEFAULT, __do_fork, thread_current ());
 }
 
 #ifndef VM
@@ -105,29 +94,22 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *newpage;
 	bool writable;
 
-	/* If the parent_page is kernel page, then return immediately. */
-	if (is_kern_pte (pte))
-		return true;
+	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
 
-	/* Resolve VA from the parent's page map level 4. */
+	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
 
-	/* Allocate new PAL_USER page for the child and set result to NEWPAGE. */
-	newpage = palloc_get_page (PAL_USER);
-	if (newpage == NULL)
-		return false;
+	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
+	 *    TODO: NEWPAGE. */
 
-	/* Duplicate parent's page to the new page and check whether parent's
-	 * page is writable or not. */
-	memcpy(newpage, parent_page, PGSIZE);
-	writable = is_writable(pte);
+	/* 4. TODO: Duplicate parent's page to the new page and
+	 *    TODO: check whether parent's page is writable or not (set WRITABLE
+	 *    TODO: according to the result). */
 
-	/* Add new page to child's page table at address VA with WRITABLE
-	 * permission. */
+	/* 5. Add new page to child's page table at address VA with WRITABLE
+	 *    permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
-		/* If fail to insert page, do error handling. */
-		palloc_free_page(newpage);
-		return false;///////////////////////////////////////////////////////////////////////////Error handling correct?
+		/* 6. TODO: if fail to insert page, do error handling. */
 	}
 	return true;
 }
@@ -142,13 +124,9 @@ __do_fork (void *aux) {
 	struct intr_frame if_;
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
-	struct intr_frame *parent_if = &parent->tf;
+	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
+	struct intr_frame *parent_if;
 	bool succ = true;
-
-	ASSERT (thread_is_user (parent));
-	ASSERT (parent->executable);
-	ASSERT (parent->fork_sema.value == 0);
-	ASSERT (list_size (&parent->fork_sema.waiters) == 1);
 
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
@@ -168,71 +146,19 @@ __do_fork (void *aux) {
 		goto error;
 #endif
 
-	current->executable = file_duplicate (parent->executable); /* Assign executable file. */
-	ASSERT (current->executable);
-	file_deny_write(current->executable); /* Deny write. */
-	duplicate_fd_table (&parent->fd_t);
-
-	/* Let parent finish forking. */
-	sema_up (&parent->fork_sema);
+	/* TODO: Your code goes here.
+	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
+	 * TODO:       in include/filesys/file.h. Note that parent should not return
+	 * TODO:       from the fork() until this function successfully duplicates
+	 * TODO:       the resources of parent.*/
 
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		do_iret (&if_);
-	ASSERT (0);
 error:
-	sema_up (&parent->fork_sema);
 	thread_exit (-1);
-}
-
-/* Duplicates the given PARENT FD TABLE into the current thread's. */
-static void
-duplicate_fd_table (struct fd_table *parent_fd_t) {
-	struct fd_table *curr_fd_t = &thread_current ()->fd_t;
-	struct file_descriptor *parent_fd, *curr_fd;
-	enum intr_level old_level;
-
-	ASSERT (parent_fd_t);
-	ASSERT (parent_fd_t->table);
-	ASSERT (curr_fd_t);
-	ASSERT (curr_fd_t->table);
-
-	old_level = intr_disable ();
-	/* Set table size. */
-	curr_fd_t->size = parent_fd_t->size;
-
-	/* Copy file descriptors. */
-	for (int i = 0; i <= MAX_FD; i++) {
-		parent_fd = &parent_fd_t->table[i];
-		curr_fd = &curr_fd_t->table[i];
-		/* Check correctness of current thread's fd table. */
-		ASSERT (curr_fd->fd_file == NULL
-				&& ((curr_fd->fd_st == FD_OPEN
-								&& (curr_fd->fd_t == FDT_STDIN || curr_fd->fd_t == FDT_STDOUT))
-						|| (curr_fd->fd_st == FD_CLOSE && curr_fd->fd_t == FDT_OTHER)));
-		/* Copy fd. */
-		curr_fd->fd_st = parent_fd->fd_st;
-		curr_fd->fd_t = parent_fd->fd_t;
-		switch (parent_fd->fd_st) {
-			case FD_OPEN:
-				if (parent_fd->fd_file == NULL) {
-					ASSERT (parent_fd->fd_t == FDT_STDIN || parent_fd->fd_t == FDT_STDOUT);
-				} else { /* Open file. */
-					ASSERT (parent_fd->fd_t == FDT_OTHER);
-					curr_fd->fd_file = file_duplicate (parent_fd->fd_file);
-					ASSERT (curr_fd->fd_file);
-				}
-				break;
-			case FD_CLOSE:
-				ASSERT (parent_fd->fd_t == FDT_OTHER && parent_fd->fd_file == NULL);
-				break;
-			default:
-				ASSERT (0);
-		}
-	}
-	intr_set_level (old_level);
 }
 
 /* Switch the current execution context to the f_name.
@@ -360,7 +286,7 @@ process_exit (int status) {
 	ASSERT (intr_get_level () == INTR_OFF);
 
 	curr->exit_status = status;
-	if (thread_is_user (curr)) {
+	if (thread_is_user ()) {
 		ASSERT (curr->fd_t.table);
 		ASSERT (curr->fd_t.size <= MAX_FD + 1);
 		/* Report termination to parent, if any. */
@@ -394,11 +320,9 @@ process_exit (int status) {
 			}
 		}
 		free (curr->fd_t.table);
-		if (curr->executable)
-			file_close(curr->executable);
 		if (!thread_tests) {
-			//ASSERT (curr->executable);
-			//file_close(curr->executable);
+			ASSERT (curr->executable);
+			file_close(curr->executable);
 			/* Print exit status. */
 			printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
 		}

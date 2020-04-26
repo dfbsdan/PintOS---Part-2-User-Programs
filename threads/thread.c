@@ -327,10 +327,10 @@ thread_name (void) {
 /* Returns True if the current thread is an user thread, false
 	 otherwise. */
 bool
-thread_is_user (struct thread *t) {
-	ASSERT (is_thread (t));
-
-	return t != initial_thread && t != idle_thread;
+thread_is_user (void)
+{
+	struct thread *curr = thread_current ();
+	return curr != initial_thread && curr != idle_thread;
 }
 
 /* Returns the running thread.
@@ -652,7 +652,6 @@ init_thread (struct thread *t, const char *name, int priority,
 	}
 	else
 		t->parent = NULL;
-	sema_init (&t->fork_sema, 0);
 	t->exit_status = 0;
 #endif
 	list_push_back (&all_list, &t->all_elem);

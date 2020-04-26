@@ -5,7 +5,6 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
-#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -156,8 +155,6 @@ struct thread {
 	struct list terminated_children_st;	/* Holds the tids and exit statuses
 	 																			 of terminated children. */
 	struct thread *parent;
-	struct semaphore fork_sema;					/* Used while forking to tell the
-																				 parent process about success. */
 	/* Owned by userprog/process.c and userprog/syscall.c. */
 	struct fd_table fd_t;								/* Process' file descriptor table. */
 	int exit_status;
@@ -193,7 +190,7 @@ void thread_sleep (void);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
-bool thread_is_user (struct thread *t);
+bool thread_is_user (void);
 
 void thread_exit (int status) NO_RETURN;
 void thread_yield (void);
