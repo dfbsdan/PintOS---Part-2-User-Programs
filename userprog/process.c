@@ -382,6 +382,7 @@ process_exit (int status) {
 
 	ASSERT (intr_get_level () == INTR_OFF);
 
+	printf("TERMINATING: %s\n", curr->name);///////////////////////////////////////////////////DEBUGGING
 	curr->exit_status = status;
 	if (thread_is_user (curr)) {
 		ASSERT (curr->fd_t.table);
