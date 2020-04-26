@@ -164,6 +164,7 @@ __do_fork (void *aux) {
 
 	/* Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	if_.R.rax = 0;/////////////////////////////////////////////////////////////////////////////////////////TESTING: Return 0 in fork system call?
 
 	/* Duplicate PT */
 	current->pml4 = pml4_create();
