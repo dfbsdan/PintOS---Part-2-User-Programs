@@ -562,8 +562,6 @@ syscall_dup2 (int oldfd, int newfd) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *old_file_descriptor, *new_file_descriptor;
 
-	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////////BUGS
-
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
@@ -584,6 +582,8 @@ syscall_dup2 (int oldfd, int newfd) {
 			ASSERT (new_file_descriptor->fd_st == FD_CLOSE
 					&& new_file_descriptor->fd_t == FDT_OTHER
 					&& new_file_descriptor->fd_file == NULL);
+			printf("DUP2: NEWFD CLOSED. oldfd: %d, newfd: %d\n", oldfd, newfd);/////////////////////////////////////TESTING
+			return newfd;///////////////////////////////////////////////////////////////////////////////////////////TESTING
 			new_file_descriptor->fd_st = FD_OPEN;
 			new_file_descriptor->fd_t = old_file_descriptor->fd_t;
 			new_file_descriptor->fd_file = old_file_descriptor->fd_file;
@@ -591,6 +591,7 @@ syscall_dup2 (int oldfd, int newfd) {
 		case FD_CLOSE:
 			ASSERT (old_file_descriptor->fd_t == FDT_OTHER
 					&& old_file_descriptor->fd_file == NULL);
+			printf("DUP2: ERROR: OLDFD CLOSED. oldfd: %d, newfd: %d\n", oldfd, newfd);//////////////////////////////TESTING
 			return -1;
 		default:
 			ASSERT (0);
