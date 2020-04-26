@@ -264,11 +264,9 @@ syscall_open (const char *file) {
 	if (file == NULL)
 		return -1;
 	check_mem_space_read (file, 0, true);
-	printf("OPEN: file: %s\n", file);////////////////////////////////////////////////////////////////////////////////Testing
 	f = filesys_open (file);
 	if (f == NULL)
 		return -1;
-	printf("OPEN: opened!\n");///////////////////////////////////////////////////////////////////////////////////////Testing
 	return create_file_descriptor (f);
 }
 
@@ -284,12 +282,10 @@ create_file_descriptor (struct file *file) {
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
-	printf("CREATE_FD\n");///////////////////////////////////////////////////////////////////////////////////////////Testing
 	if (fd_t->size == MAX_FD + 1) { /* Full table. */
 		file_close (file);
 		return -1;
 	}
-	printf("CREATE_FD: About to look for an fd\n");//////////////////////////////////////////////////////////////////Testing
 	/* Find and return the fd with lowest index available. */
 	for (int i = 0; i <= MAX_FD; i++) {
 		fd = &fd_t->table[i];
@@ -301,7 +297,6 @@ create_file_descriptor (struct file *file) {
 					ASSERT (fd->fd_t == FDT_OTHER);
 				break;
 			case FD_CLOSE:
-				printf("CREATE_FD: fd found: %d\n", i);///////////////////////////////////////////////////////////////////Testing
 				ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL);
 				fd->fd_st = FD_OPEN;
 				fd->fd_file = file;
@@ -524,25 +519,20 @@ syscall_close (int fd) {
 	if (fd < 0 || fd > MAX_FD)
 		return;
 	file_descriptor = &fd_t->table[fd];
-	printf("CLOSE: fd: %d\n", fd);/////////////////////////////////////////////////////////////////////////////////////Testing
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
-			printf("CLOSE: open fd\n");////////////////////////////////////////////////////////////////////////////////////Testing
 			file_descriptor->fd_st = FD_CLOSE;
 			if (file_descriptor->fd_file == NULL) {
-				printf("CLOSE: stdio\n");////////////////////////////////////////////////////////////////////////////////////Testing
 				ASSERT (file_descriptor->fd_t == FDT_STDIN
 						|| file_descriptor->fd_t == FDT_STDOUT);
 				file_descriptor->fd_t = FDT_OTHER;
 				return;
 			}
-			printf("CLOSE: open file\n");//////////////////////////////////////////////////////////////////////////////////Testing
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
 			file_close (file_descriptor->fd_file);
 			file_descriptor->fd_file = NULL;
 			return;
 		case FD_CLOSE:
-			printf("CLOSE: close fd\n");///////////////////////////////////////////////////////////////////////////////////Testing
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
 					&& file_descriptor->fd_file == NULL);
 			return;
