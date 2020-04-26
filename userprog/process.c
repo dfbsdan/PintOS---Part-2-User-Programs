@@ -303,8 +303,10 @@ process_wait (tid_t child_tid) {
 	struct terminated_child_st *child_st;
 	int exit_status;
 
-	if (!terminated_child (child_tid) && !active_child (child_tid))
+	if (!terminated_child (child_tid) && !active_child (child_tid)) {
+		printf("PROCESS_WAIT: %s' INVALID CHILD\n", thread_name ()); ////////////////////////////////////////////////////////////////////////DEBUGGING
 		return -1;
+	}
 	while (active_child (child_tid) && !terminated_child (child_tid))
 		thread_yield (); //Wait for child's termination
 	/* Get child's exit status. */
@@ -314,6 +316,7 @@ process_wait (tid_t child_tid) {
 	/* Clean up. */
 	list_remove (&child_st->elem);
 	free (child_st);
+	printf("PROCESS_WAIT: %s' child finished\n", thread_name ()); /////////////////////////////////////////////////////////////////////////DEBUGGING
 	return exit_status;
 }
 
