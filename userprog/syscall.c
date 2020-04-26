@@ -547,6 +547,8 @@ syscall_dup2 (int oldfd, int newfd) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *old_file_descriptor, *new_file_descriptor;
 
+	ASSERT (0);////////////////////////////////////////////////////////////////////////////////////////////////////BUGS
+
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
 
