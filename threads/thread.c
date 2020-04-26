@@ -650,11 +650,11 @@ init_thread (struct thread *t, const char *name, int priority,
 	list_init (&t->terminated_children_st);
 	t->fd_t.table = NULL;
 	if (t != initial_thread) {
-		t->parent = thread_current ();
-		list_push_back (&t->parent->active_children, &t->active_child_elem);
 		if (t != idle_thread)
 			if (!init_fd_table (&t->fd_t))
 				return false;
+		t->parent = thread_current ();
+		list_push_back (&t->parent->active_children, &t->active_child_elem);
 	}
 	else
 		t->parent = NULL;
