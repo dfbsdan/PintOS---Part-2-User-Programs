@@ -33,7 +33,7 @@ void syscall_handler (struct intr_frame *);
 static void syscall_halt (void);
 static void syscall_exit (int status);
 static int syscall_fork (const char *thr_name, struct intr_frame *f);
-static int syscall_exec (const char *cmd_line);
+static void syscall_exec (const char *cmd_line);
 static int syscall_wait (int pid);
 static bool syscall_create (const char *file, unsigned initial_size);
 static bool syscall_remove (const char *file);
@@ -80,7 +80,7 @@ syscall_handler (struct intr_frame *f) {
 			f->R.rax = (uint64_t)syscall_fork ((const char*)f->R.rdi, f);
 			break;
 		case SYS_EXEC:
-			f->R.rax = (uint64_t)syscall_exec ((const char*)f->R.rdi);
+			syscall_exec ((const char*)f->R.rdi);
 			break;
 		case SYS_WAIT:
 			f->R.rax = (uint64_t)syscall_wait ((int)f->R.rdi);
@@ -178,13 +178,11 @@ syscall_fork (const char *thr_name, struct intr_frame *f) {
  * program cannot load or run for any reason. This function does not
  * change the name of the thread that called exec. Please note that file
  * descriptors remain open across an exec call. */
-static int
+static void
 syscall_exec (const char *cmd_line) {
-	if (cmd_line == NULL)
-		thread_exit (-1);
 	check_mem_space_read (cmd_line, 0, true);
-	ASSERT (0);//////////////////////////////////////////////////////////////////////////////////////////Not finished
-	return process_exec (cmd_line);
+	process_exec (cmd_line);
+	thread_exit (-1); /* Not reached on success. */
 }
 
 /* Waits for a child process pid and retrieves the child's exit status.
