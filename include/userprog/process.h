@@ -21,9 +21,9 @@ struct parent_process_frame {
   struct intr_frame *f;
 };
 
-tid_t process_create_initd (const char *file_name);
+tid_t process_create_initd (const char *command);
 tid_t process_fork (const char *name, struct intr_frame *if_);
-int process_exec (void *f_name);
+int process_exec (void *command_);
 int process_wait (tid_t);
 void process_exit (int status);
 void process_activate (struct thread *next);

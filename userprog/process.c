@@ -28,7 +28,7 @@ static struct terminated_child_st *terminated_child (tid_t child_tid);
 static bool active_child (tid_t child_tid);
 static void process_cleanup (void);
 static bool load (const char *command, struct intr_frame *if_);
-static void initd (void *f_name);
+static void initd (void *command);
 static void __do_fork (void *);
 static bool duplicate_fd_table (struct fd_table *parent_fd_t);
 
@@ -38,39 +38,45 @@ process_init (void) {
 	struct thread *current = thread_current ();
 }
 
-/* Starts the first userland program, called "initd", loaded from FILE_NAME.
+/* Starts the first userland program, called "initd", loaded from the first
+ * word inside COMMAND.
  * The new thread may be scheduled (and may even exit)
  * before process_create_initd() returns. Returns the initd's
  * thread id, or TID_ERROR if the thread cannot be created.
  * Notice that THIS SHOULD BE CALLED ONCE. */
 tid_t
-process_create_initd (const char *file_name) {
-	char *fn_copy;
+process_create_initd (const char *command) {
+	char *command_copy, *file_name, command_buf[strlen (command) +1], *save_ptr;
 	tid_t tid;
 
-	/* Make a copy of FILE_NAME.
-	 * Otherwise there's a race between the caller and load(). */
-	fn_copy = palloc_get_page (0);
-	if (fn_copy == NULL)
-		return TID_ERROR;
-	strlcpy (fn_copy, file_name, PGSIZE);
+	/* Get file_name. */
+	strlcpy (command_buf, command, strlen (command) +1);
+	file_name = strtok_r (command_buf, " ", &save_ptr);
+	ASSERT (file_name != NULL);
 
-	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
+	/* Make a copy of COMMAND.
+	 * Otherwise there's a race between the caller and load(). */
+	command_copy = palloc_get_page (0);
+	if (command_copy == NULL)
+		return TID_ERROR;
+	strlcpy (command_copy, command, PGSIZE);
+
+	/* Create a new thread to execute COMMAND. */
+	tid = thread_create (file_name, PRI_DEFAULT, initd, command_copy);
 	if (tid == TID_ERROR)
-		palloc_free_page (fn_copy);
+		palloc_free_page (command_copy);
 	return tid;
 }
 
 /* A thread function that launches first user process. */
 static void
-initd (void *f_name) {
+initd (void *command) {
 #ifdef VM
 	supplemental_page_table_init (&thread_current ()->spt);
 #endif
 
 	process_init ();
-	if (process_exec (f_name) < 0)
+	if (process_exec (command) < 0)
 		PANIC("Fail to launch initd\n");
 	NOT_REACHED ();
 }
@@ -266,8 +272,8 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
 int
-process_exec (void *f_name) {
-	char *file_name = f_name;
+process_exec (void *command_) {
+	char *command = command_;
 	bool success;
 
 	/* We cannot use the intr_frame in the thread structure.
@@ -282,10 +288,10 @@ process_exec (void *f_name) {
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (command, &_if);
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
+	palloc_free_page (command);
 	if (!success)
 		return -1;
 
@@ -575,12 +581,12 @@ load (const char *command, struct intr_frame *if_) {
 
 	/* Avoid race conditions by copying the command. */
 	command_copy = (char*)malloc (strlen (command) + 1);
-	ASSERT (command_copy);
+	if (command_copy == NULL)
+		return false;
   strlcpy (command_copy, command, strlen (command) + 1);
   file_name = strtok_r (command_copy, " ", &save_ptr);
-	ASSERT (file_name != NULL);
-	/* Update thread's name. */
-	strlcpy (t->name, file_name, sizeof t->name);
+	if (file_name == NULL)
+		goto done;
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
