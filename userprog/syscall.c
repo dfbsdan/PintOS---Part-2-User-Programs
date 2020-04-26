@@ -175,7 +175,6 @@ syscall_fork (const char *thr_name, struct intr_frame *f) {
 	child_tid = process_fork (thr_name, f);
 
 	printf("SYSCALL_FORK: child_tid: %d, curr_thread_name: %s\n", (int)child_tid, thread_name ());//////////////////////////////DEBUGGING
-	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
 
 	return child_tid;
 }
