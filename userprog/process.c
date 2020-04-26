@@ -155,7 +155,7 @@ __do_fork (void *aux) {
 		thread_yield ();
 
 	/* Duplicate parent's executable file and deny write on it. */
-	current->executable = file_duplicate (parent->executable);
+	current->executable = file_reopen (parent->executable);
 	ASSERT (current->executable);
 	file_deny_write (current->executable);
 
