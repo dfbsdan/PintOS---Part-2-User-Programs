@@ -154,6 +154,11 @@ __do_fork (void *aux) {
 	while (list_size (&parent->fork_sema.waiters) == 0)
 		thread_yield ();
 
+	/* Duplicate parent's executable file and deny write on it. */
+	current->executable = file_duplicate (parent->executable);
+	ASSERT (current->executable);
+	file_deny_write (current->executable);
+
 	sema_up (&parent->fork_sema);///////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING: Wake up parent
 	printf("__DO_FORK: curr_thread_name: %s, parent's name: %s\n", thread_name (), parent->name);///////////////////////////////DEBUGGING
 	thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////////////////////DEBUGGING
