@@ -11,6 +11,7 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/fpa.h"
+#include "threads/malloc.h"
 #include "intrinsic.h"
 #include "devices/timer.h"
 #ifdef USERPROG
@@ -80,13 +81,16 @@ static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
 static struct thread *next_thread_to_run (void);
-static void init_thread (struct thread *, const char *name, int priority,
+static bool init_thread (struct thread *, const char *name, int priority,
 		int recent_cpu, int nice);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
 static void wake_up_threads (void);
 static struct thread *get_max_donor (void);
+#ifdef USERPROG
+static bool init_fd_table (struct fd_table *fd_t);
+#endif
 static int mlfqs_calculate_priority (struct thread *t);
 static void mlfqs_update_priorities (void);
 static void mlfqs_update_recent_cpu (void);
@@ -144,7 +148,8 @@ thread_init (void) {
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
-	init_thread (initial_thread, "main", PRI_DEFAULT, 0, 0);
+	if (!init_thread (initial_thread, "main", PRI_DEFAULT, 0, 0))
+		PANIC ("Unable to initialize threading system");
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
 }
@@ -240,7 +245,10 @@ thread_create (const char *name, int priority,
 
 	/* Initialize thread. */
 	curr = thread_current ();
-	init_thread (t, name, priority, curr->recent_cpu, curr->nice);
+	if (!init_thread (t, name, priority, curr->recent_cpu, curr->nice)) {
+		palloc_free_page (t);
+		return TID_ERROR;
+	}
 	tid = t->tid = allocate_tid ();
 
 	/* Call the kernel_thread if it scheduled.
@@ -323,10 +331,11 @@ thread_name (void) {
 /* Returns True if the current thread is an user thread, false
 	 otherwise. */
 bool
-thread_is_user (void)
+thread_is_user (struct thread *t)
 {
-	struct thread *curr = thread_current ();
-	return curr != initial_thread && curr != idle_thread;
+	ASSERT (is_thread (t));
+
+	return t != initial_thread && t != idle_thread;
 }
 
 /* Returns the running thread.
@@ -354,17 +363,18 @@ thread_tid (void) {
 }
 
 /* Deschedules the current thread and destroys it.  Never
-   returns to the caller. */
+   returns to the caller. STATUS corresponds to the exit status of the
+	 terminating thread, this is used in userprog/process.c. */
 void
-thread_exit (void) {
+thread_exit (int status) {
 	ASSERT (!intr_context ());
 
+	intr_disable ();
 #ifdef USERPROG
-	process_exit ();
+	process_exit (status);
 #endif
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
-	intr_disable ();
 	list_remove (&thread_current ()->all_elem);
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
@@ -609,13 +619,13 @@ kernel_thread (thread_func *function, void *aux) {
 
 	intr_enable ();       /* The scheduler runs with interrupts off. */
 	function (aux);       /* Execute the thread function. */
-	thread_exit ();       /* If function() returns, kill the thread. */
+	thread_exit (0);      /* If function() returns, kill the thread. */
 }
 
 
 /* Does basic initialization of T as a blocked thread named
-   NAME. */
-static void
+   NAME. Returns TRUE on success, FALSE otherwise. */
+static bool
 init_thread (struct thread *t, const char *name, int priority,
 		int recent_cpu, int nice) {
 	ASSERT (t != NULL);
@@ -633,11 +643,58 @@ init_thread (struct thread *t, const char *name, int priority,
 	t->priority = (thread_mlfqs)? mlfqs_calculate_priority(t): priority;
 	t->original_priority = priority;
 	t->waiting_lock = NULL;
-	t->executable = NULL;
-	t->exit_status = 0;
 	list_init (&t->locks_held);
+#ifdef USERPROG
+	t->executable = NULL;
+	list_init (&t->active_children);
+	list_init (&t->terminated_children_st);
+	t->fd_t.table = NULL;
+	if (t != initial_thread) {
+		if (t != idle_thread)
+			if (!init_fd_table (&t->fd_t))
+				return false;
+		t->parent = thread_current ();
+		list_push_back (&t->parent->active_children, &t->active_child_elem);
+	}
+	else
+		t->parent = NULL;
+	sema_init (&t->fork_sema, 0);
+	t->exit_status = 0;
+#endif
 	list_push_back (&all_list, &t->all_elem);
+	return true;
 }
+
+#ifdef USERPROG
+/* Initializes the file descriptor table of a process. Returns FALSE on
+ 	 error, TRUE otherwise. */
+static bool
+init_fd_table (struct fd_table *fd_t) {
+	struct file_descriptor *fd;
+	int i;
+
+	ASSERT (fd_t);
+
+	fd_t->size = 2; /* Default: 0: stdin, 1: stdout. */
+	fd_t->table = (struct file_descriptor*)calloc (MAX_FD + 1, sizeof (struct file_descriptor));
+	if (!fd_t->table)
+		return false;
+	/* Open stdin and stdout. */
+	fd = &fd_t->table[0];
+	fd->fd_st = FD_OPEN;
+	fd->fd_t = FDT_STDIN;
+	fd = &fd_t->table[1];
+	fd->fd_st = FD_OPEN;
+	fd->fd_t = FDT_STDOUT;
+	/* Initialize remaining fds. */
+	for (i = 2; i <= MAX_FD; i++) {
+		fd = &fd_t->table[i];
+		fd->fd_st = FD_CLOSE;
+		fd->fd_t = FDT_OTHER;
+	}
+	return true;
+}
+#endif
 
 /* Calculates and returns the new priority for a given THREAD (mlfqs). */
 static int

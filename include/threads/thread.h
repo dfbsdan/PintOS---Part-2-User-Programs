@@ -9,6 +9,42 @@
 #include "vm/vm.h"
 #endif
 
+#ifdef USERPROG
+#include "threads/synch.h"
+
+#define MAX_FD 127 /* Max allowed file descriptor per process. */
+
+/* Allowed states of a file descriptor. */
+enum fd_status {FD_CLOSE, FD_OPEN};
+
+/* Allowed types of file descriptor. */
+enum fd_type {FDT_STDIN, FDT_STDOUT, FDT_OTHER};
+
+/* File descriptor structure. */
+struct file_descriptor {
+	/* Status of the file descriptor. */
+	enum fd_status fd_st;
+	/* Type of the file descriptor. If the fd is closed or open and
+		 associated with a file, this has to be FDT_OTHER, if open and not
+		 associated, either FDT_STDIN or FDT_STDOUT. */
+	enum fd_type fd_t;
+	/* File associated with the fd. If the fd is open, this has to be a
+		 valid file pointer unless its type is FDT_STDIN or FDT_STDOUT.
+		 If the fd is closed, FILE is always NULL */
+	struct file *fd_file;
+};
+
+/* Structure holding the file descriptors of a process. */
+struct fd_table {
+	/* Keeps track of the number of opened file descriptors. */
+	size_t size;
+	/* File descriptor table of a process.
+		 Each index corresponds to a file descriptor in the range [0, MAX_FD],
+		 inclusive. */
+	struct file_descriptor *table;
+};
+#endif
+
 /* States in a thread's life cycle. */
 enum thread_status {
 	THREAD_RUNNING,     /* Running thread. */
@@ -114,7 +150,17 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
-	struct file *executable; /*pointer to current file*/
+	struct file *executable; 						/* Pointer to current file. */
+	struct list active_children;				/* Holds pointers to active children. */
+	struct list_elem active_child_elem;	/* active_children list element. */
+	struct list terminated_children_st;	/* Holds the tids and exit statuses
+	 																			 of terminated children. */
+	struct thread *parent;
+	struct semaphore fork_sema;					/* Used on a fork() system call to
+																				 wake up the calling process once
+																				 the child has finished forking. */
+	/* Owned by userprog/process.c and userprog/syscall.c. */
+	struct fd_table fd_t;								/* Process' file descriptor table. */
 	int exit_status;
 #endif
 #ifdef VM
@@ -148,9 +194,9 @@ void thread_sleep (void);
 struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
-bool thread_is_user (void);
+bool thread_is_user (struct thread *t);
 
-void thread_exit (void) NO_RETURN;
+void thread_exit (int status) NO_RETURN;
 void thread_yield (void);
 
 int thread_get_priority (void);
