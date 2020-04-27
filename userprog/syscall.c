@@ -521,6 +521,7 @@ syscall_close (int fd) {
 	file_descriptor = &fd_t->table[fd];
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
+			fd_t->size--;
 			file_descriptor->fd_st = FD_CLOSE;
 			if (file_descriptor->fd_file == NULL) {
 				ASSERT (file_descriptor->fd_t == FDT_STDIN
