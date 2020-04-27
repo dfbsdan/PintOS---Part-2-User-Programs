@@ -404,10 +404,11 @@ process_exit (int status) {
 			list_remove (&curr->active_child_elem);
 			/* Report exit status to parent. */
 			child_st = (struct terminated_child_st*)malloc (sizeof (struct terminated_child_st));
-			ASSERT (child_st);
-			child_st->pid = curr->tid;
-			child_st->exit_status = curr->exit_status;
-			list_push_back (&curr->parent->terminated_children_st, &child_st->elem);
+			if (child_st != NULL) {
+				child_st->pid = curr->tid;
+				child_st->exit_status = curr->exit_status;
+				list_push_back (&curr->parent->terminated_children_st, &child_st->elem);
+			}
 		}
 		/* Destroy file descriptor table. */
 		for (int i = 0; i <= MAX_FD; i++) {
