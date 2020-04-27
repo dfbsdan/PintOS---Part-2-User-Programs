@@ -570,11 +570,11 @@ syscall_dup2 (int oldfd, int newfd) {
 	old_file_descriptor = &fd_t->table[oldfd];
 	switch (old_file_descriptor->fd_st) {
 		case FD_OPEN:
-			if (old_file_descriptor->fd_file == NULL) {
-				ASSERT (old_file_descriptor->fd_t == FDT_STDIN
-						|| old_file_descriptor->fd_t == FDT_STDOUT);
-			} else
-				ASSERT (old_file_descriptor->fd_t == FDT_OTHER);
+			ASSERT ((old_file_descriptor->fd_file == NULL
+							&& (old_file_descriptor->fd_t == FDT_STDIN
+									|| old_file_descriptor->fd_t == FDT_STDOUT))
+					|| (old_file_descriptor->fd_file != NULL
+							&& old_file_descriptor->fd_t == FDT_OTHER));
 			if (oldfd == newfd)
 				return newfd;
 			syscall_close (newfd);
@@ -582,10 +582,14 @@ syscall_dup2 (int oldfd, int newfd) {
 			ASSERT (new_file_descriptor->fd_st == FD_CLOSE
 					&& new_file_descriptor->fd_t == FDT_OTHER
 					&& new_file_descriptor->fd_file == NULL);
-			thread_exit (-1);///////////////////////////////////////////////////////////////////////////////////////////TESTING
+			if (old_file_descriptor->fd_file) {
+				new_file_descriptor->fd_file = file_duplicate (old_file_descriptor->fd_file);
+				if (new_file_descriptor->fd_file == NULL)
+					return -1;
+				/////////////////////////////////////////////////////////////////////////////TODO: Link somehow old and new files
+			}
 			new_file_descriptor->fd_st = FD_OPEN;
 			new_file_descriptor->fd_t = old_file_descriptor->fd_t;
-			new_file_descriptor->fd_file = old_file_descriptor->fd_file;
 			return newfd;
 		case FD_CLOSE:
 			ASSERT (old_file_descriptor->fd_t == FDT_OTHER
