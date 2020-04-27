@@ -104,7 +104,8 @@ process_fork (const char *name, struct intr_frame *if_) {
 	/* Check if the child finished with some error. */
 	if (!active_child (child_tid)) {
 		child_st = terminated_child (child_tid);
-		ASSERT (child_st);
+		if (child_st == NULL)
+			return TID_ERROR;
 		if (child_st->exit_status == -1) {
 			process_wait (child_tid);
 			return TID_ERROR;
