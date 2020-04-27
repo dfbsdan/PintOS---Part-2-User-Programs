@@ -12,7 +12,7 @@
 #ifdef USERPROG
 #include "threads/synch.h"
 
-#define MAX_FD 127 /* Max allowed file descriptor per process. */
+#define MAX_FD 511 /* Max allowed file descriptor per process. */
 
 /* Allowed states of a file descriptor. */
 enum fd_status {FD_CLOSE, FD_OPEN};
