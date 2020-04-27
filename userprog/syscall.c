@@ -591,6 +591,7 @@ syscall_dup2 (int oldfd, int newfd) {
 			}
 			new_file_descriptor->fd_st = FD_OPEN;
 			new_file_descriptor->fd_t = old_file_descriptor->fd_t;
+			fd_t->size++;
 			return newfd;
 		case FD_CLOSE:
 			ASSERT (old_file_descriptor->fd_t == FDT_OTHER
