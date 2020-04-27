@@ -1,14 +1,19 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
+#include "userprog/process.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/vaddr.h"
+#include "threads/palloc.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
+#include "devices/input.h"
 #include "intrinsic.h"
 
 void syscall_entry (void);
@@ -29,8 +34,8 @@ void syscall_handler (struct intr_frame *);
 
 static void syscall_halt (void);
 static void syscall_exit (int status);
-static int syscall_fork (const char *thread_name);
-static int syscall_exec (const char *file);
+static int syscall_fork (const char *thr_name, struct intr_frame *f);
+static void syscall_exec (const char *cmd_line);
 static int syscall_wait (int pid);
 static bool syscall_create (const char *file, unsigned initial_size);
 static bool syscall_remove (const char *file);
@@ -42,11 +47,12 @@ static void syscall_seek (int fd, unsigned position);
 static unsigned syscall_tell (int fd);
 static void syscall_close (int fd);
 static int syscall_dup2 (int oldfd, int newfd);
-////////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
-static void check_address(void *addr);
-static int get_user(const uint8_t *uaddr);
+static int create_file_descriptor (struct file *file);
+static void check_mem_space_read (const void *addr_, const size_t size, const bool is_str);
+static void check_mem_space_write (const void *addr_, const size_t size);
+static int64_t get_user(const uint8_t *uaddr);
 static bool put_user(uint8_t *udst, uint8_t byte);
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+static bool valid_user_addr (const uint8_t *addr);
 
 void
 syscall_init (void) {
@@ -64,7 +70,7 @@ syscall_init (void) {
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f) {
-	/////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
+	ASSERT (thread_is_user (thread_current ()));
 	switch (f->R.rax) {
 		case SYS_HALT:
 			syscall_halt ();
@@ -73,10 +79,10 @@ syscall_handler (struct intr_frame *f) {
 			syscall_exit ((int)f->R.rdi);
 			break;
 		case SYS_FORK:
-			f->R.rax = (uint64_t)syscall_fork ((const char*)f->R.rdi);
+			f->R.rax = (uint64_t)syscall_fork ((const char*)f->R.rdi, f);
 			break;
 		case SYS_EXEC:
-			f->R.rax = (uint64_t)syscall_exec ((const char*)f->R.rdi);
+			syscall_exec ((const char*)f->R.rdi);
 			break;
 		case SYS_WAIT:
 			f->R.rax = (uint64_t)syscall_wait ((int)f->R.rdi);
@@ -125,9 +131,6 @@ syscall_handler (struct intr_frame *f) {
 		default:
 			ASSERT (0); //Unknown syscall (could not be implemented yet)
 	}
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	//printf ("system call!\n");
-	//thread_exit ();
 }
 
 /* Terminates Pintos by calling power_off(). This should be seldom used,
@@ -144,12 +147,7 @@ syscall_halt (void) {
  * and nonzero values indicate errors. */
 static void
 syscall_exit (int status) {
-	/////////////////////////////////////////////////////////////////////////////////////////////////////TESTING
-	thread_current ()->exit_status = status;
-	thread_exit ();
-	/* Return exit status to waiting parent. */
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	thread_exit (status);
 }
 
 /* Create new process which is the clone of current process with the name
@@ -167,8 +165,13 @@ syscall_exit (int status) {
  * but you need to fill missing parts of passed pte_for_each_func (See
  * virtual address). */
 static int
-syscall_fork (const char *thread_name UNUSED) {
-	ASSERT (0);
+syscall_fork (const char *thr_name, struct intr_frame *f) {
+	ASSERT (f);
+
+	if (thr_name == NULL)
+		return -1;
+	check_mem_space_read (thr_name, 0, true);
+	return process_fork (thr_name, f);
 }
 
 /* Change current process to the executable whose name is given in
@@ -177,47 +180,48 @@ syscall_fork (const char *thread_name UNUSED) {
  * program cannot load or run for any reason. This function does not
  * change the name of the thread that called exec. Please note that file
  * descriptors remain open across an exec call. */
-static int
-syscall_exec (const char *file UNUSED) {
-	ASSERT (0);
+static void
+syscall_exec (const char *cmd_line) {
+	struct thread *curr = thread_current ();
+	char *cmd_line_copy;
+
+	check_mem_space_read (cmd_line, 0, true);
+
+	/* Close current executable. */
+	ASSERT (curr->executable);
+	file_close (curr->executable);
+	curr->executable = NULL;
+	/* Make a copy of CMD_LINE. */
+	cmd_line_copy = palloc_get_page (0);
+	if (cmd_line_copy == NULL)
+		thread_exit (-1);
+	strlcpy (cmd_line_copy, cmd_line, PGSIZE);
+
+	process_exec (cmd_line_copy);
+	thread_exit (-1); /* Not reached on success. */
 }
 
-/* Waits for a child process pid and retrieves the child's exit status. If
- * pid is still alive, waits until it terminates. Then, returns the status
- * that pid passed to exit. If pid did not call exit(), but was terminated
- * by the kernel (e.g. killed due to an exception), wait(pid) must return
- * -1. It is perfectly legal for a parent process to wait for child
- * processes that have already terminated by the time the parent calls
- * wait, but the kernel must still allow the parent to retrieve its child’s
- * exit status, or learn that the child was terminated by the kernel.
- * wait must fail and return -1 immediately if any of the following
- * conditions is true:
- * -pid does not refer to a direct child of the calling process. pid is a
- * direct child of the calling process if and only if the calling process
- * received pid as a return value from a successful call to exec. Note
- * that children are not inherited: if A spawns child B and B spawns child
+/* Waits for a child process pid and retrieves the child's exit status.
+ * If pid is still alive, waits until it terminates. Then, returns the
+ * status that pid passed to exit.
+ * If pid did not call exit(), but was terminated by the kernel (e.g.
+ * killed due to an exception), returns -1.
+ * A parent process can wait for child processes that have already
+ * terminated by the time the parent calls wait and the exit status of the
+ * terminated child will be returned.
+ * Returns -1 immediately if any of the following conditions is true:
+ * 1) pid does not refer to a direct child of the calling process.
+ * pid is a direct child of the calling process if and only if the calling
+ * process received pid as a return value from a successful call to exec.
+ * Children are not inherited: if A spawns child B and B spawns child
  * process C, then A cannot wait for C, even if B is dead. A call to
- * wait(C) by process A must fail. Similarly, orphaned processes are not
+ * wait(C) by process A will fail. Similarly, orphaned processes are not
  * assigned to a new parent if their parent process exits before they do.
- * The process that calls wait has already called wait on pid. That is, a
- * process may wait for any given child at most once.
- * Processes may spawn any number of children, wait for them in any order,
- * and may even exit without having waited for some or all of their
- * children. Your design should consider all the ways in which waits can
- * occur. All of a process's resources, including its struct thread, must
- * be freed whether its parent ever waits for it or not, and regardless of
- * whether the child exits before or after its parent.
- * You must ensure that Pintos does not terminate until the initial
- * process exits. The supplied Pintos code tries to do this by calling
- * process_wait() (in userprog/process.c) from main() (in threads/init.c).
- * We suggest that you implement process_wait() according to the comment
- * at the top of the function and then implement the wait system call in
- * terms of process_wait().
- * Implementing this system call requires considerably more work than any
- * of the rest. */
+ * 2) The process that calls wait has already called wait on pid. That is,
+ * a process may wait for any given child at most once. */
 static int
-syscall_wait (int pid UNUSED) {
-	ASSERT (0);
+syscall_wait (int pid) {
+	return process_wait ((tid_t)pid);
 }
 
 /* Creates a new file called file initially initial_size bytes in size.
@@ -226,15 +230,18 @@ syscall_wait (int pid UNUSED) {
 * require a open system call. */
 static bool
 syscall_create (const char *file, unsigned initial_size) {
+	check_mem_space_read (file, 0, true);
 	return filesys_create(file, initial_size);
 }
 
 /* Deletes the file called file. Returns true if successful, false
  * otherwise. A file may be removed regardless of whether it is open or
- * closed, and removing an open file does not close it. See Removing an
- * Open File in FAQ for details. */
+ * closed, and removing an open file does not close it. */
 static bool
 syscall_remove (const char *file) {
+	if (file == NULL)
+		return false;
+	check_mem_space_read (file, 0, true);
 	return filesys_remove(file);
 }
 
@@ -249,44 +256,181 @@ syscall_remove (const char *file) {
  * single file is opened more than once, whether by a single process or
  * different processes, each open returns a new file descriptor. Different
  * file descriptors for a single file are closed independently in separate
- * calls to close and they do not share a file position. You should follow
- * the linux scheme, which returns integer starting from zero, to do the
- * extra. */
+ * calls to close and they do not share a file position. */
 static int
-syscall_open (const char *file UNUSED) {
-	ASSERT (0);
+syscall_open (const char *file) {
+	struct file *f;
+
+	if (file == NULL)
+		return -1;
+	check_mem_space_read (file, 0, true);
+	f = filesys_open (file);
+	if (f == NULL)
+		return -1;
+	return create_file_descriptor (f);
+}
+
+/* Opens a file descriptor in the current process' file descriptor table
+	 and maps it to the given FILE. Returns -1 on failure, otherwise a file
+	 descriptor (integer) in the range [0, MAX_FD], inclusive. */
+static int
+create_file_descriptor (struct file *file) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *fd;
+
+	ASSERT (file);
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd_t->size == MAX_FD + 1) { /* Full table. */
+		file_close (file);
+		return -1;
+	}
+	/* Find and return the fd with lowest index available. */
+	for (int i = 0; i <= MAX_FD; i++) {
+		fd = &fd_t->table[i];
+		switch (fd->fd_st) {
+			case FD_OPEN:
+				if (fd->fd_file == NULL) {
+					ASSERT (fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT);
+				} else
+					ASSERT (fd->fd_t == FDT_OTHER);
+				break;
+			case FD_CLOSE:
+				ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL);
+				fd->fd_st = FD_OPEN;
+				fd->fd_file = file;
+				fd_t->size++;
+				return i;
+			default:
+				ASSERT (0);
+		}
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Returns the size, in bytes, of the file open as fd. */
 static int
-syscall_filesize (int fd UNUSED) {
-	ASSERT (0);
+syscall_filesize (int fd) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return -1;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->fd_file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				return -1;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			return (int)file_length (file_descriptor->fd_file);
+		case FD_CLOSE:
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->fd_file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
-/* Reads size bytes from the file open as fd into buffer. Returns the
+/* Reads length bytes from the file open as fd into buffer. Returns the
  * number of bytes actually read (0 at end of file), or -1 if the file
  * could not be read (due to a condition other than end of file). fd 0
  * reads from the keyboard using input_getc(). */
 static int
-syscall_read (int fd UNUSED, void *buffer UNUSED, unsigned length UNUSED) {
-	ASSERT (0);
+syscall_read (int fd, void *buffer, unsigned length) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+	uint8_t *ui8buffer = (uint8_t*)buffer;
+	unsigned bytes_read = 0, bytes_left = length;
+
+	check_mem_space_write (buffer, length);
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return -1;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->fd_file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				if (file_descriptor->fd_t == FDT_STDOUT)
+					return -1;
+				while (bytes_left > 0) {
+					ui8buffer[bytes_read] = input_getc ();
+					bytes_read++;
+					bytes_left--;
+				}
+				return length;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			return (int)file_read (file_descriptor->fd_file, buffer, length);
+		case FD_CLOSE:
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->fd_file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Writes size bytes from buffer to the open file fd. Returns the number
  * of bytes actually written, which may be less than size if some bytes
-* could not be written. Writing past end-of-file would normally extend the
-* file, but file growth is not implemented by the basic file system. The
-* expected behavior is to write as many bytes as possible up to end-of-
-* file and return the actual number written, or 0 if no bytes could be
-* written at all. fd 1 writes to the console. Your code to write to the
-* console should write all of buffer in one call to putbuf(), at least as
-* long as size is not bigger than a few hundred bytes (It is reasonable to
-* break up larger buffers). Otherwise, lines of text output by different
-* processes may end up interleaved on the console, confusing both human
-* readers and our grading scripts. */
+* could not be written (end-of-file reached), 0 meaning no bytes written
+* at all. Writing past end-of-file would normally extend the file, but
+* file growth is not implemented by the basic file system.
+* fd 1 writes to the console (stdout). */
 static int
-syscall_write (int fd UNUSED, const void *buffer UNUSED, unsigned length UNUSED) {
-	ASSERT (0);
+syscall_write (int fd, const void *buffer, unsigned length) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+	unsigned bytes_written, bytes_left = length;
+
+	check_mem_space_read (buffer, length, false);
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return -1;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->fd_file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				if (file_descriptor->fd_t == FDT_STDIN)
+					return -1;
+				/* Write to stdout. */
+				while (bytes_left > 0) {
+					/* Write in 200-byte chunks. */
+					bytes_written = (bytes_left > 200)? 200: bytes_left;
+					putbuf (buffer + length - bytes_left, bytes_written);
+					bytes_left -= bytes_written;
+				}
+				return length;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			return (int)file_write (file_descriptor->fd_file, buffer, length);
+		case FD_CLOSE:
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->fd_file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Changes the next byte to be read or written in open file fd to
@@ -299,23 +443,104 @@ syscall_write (int fd UNUSED, const void *buffer UNUSED, unsigned length UNUSED)
  * semantics are implemented in the file system and do not require any
  * special effort in system call implementation. */
 static void
-syscall_seek (int fd UNUSED, unsigned position UNUSED) {
-	ASSERT (0);
+syscall_seek (int fd, unsigned position) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->fd_file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				return;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			file_seek (file_descriptor->fd_file, position);
+			return;
+		case FD_CLOSE:
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->fd_file == NULL);
+			return;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Returns the position of the next byte to be read or written in open
 * file fd, expressed in bytes from the beginning of the file. */
 static unsigned
-syscall_tell (int fd UNUSED) {
-	ASSERT (0);
+syscall_tell (int fd) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return 0;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			if (file_descriptor->fd_file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				return 0;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			return (unsigned)file_tell (file_descriptor->fd_file);
+		case FD_CLOSE:
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->fd_file == NULL);
+			return 0;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* Closes file descriptor fd. Exiting or terminating a process implicitly
  * closes all its open file descriptors, as if by calling this function
  * for each one. */
 static void
-syscall_close (int fd UNUSED) {
-	ASSERT (0);
+syscall_close (int fd) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *file_descriptor;
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (fd < 0 || fd > MAX_FD)
+		return;
+	file_descriptor = &fd_t->table[fd];
+	switch (file_descriptor->fd_st) {
+		case FD_OPEN:
+			fd_t->size--;
+			file_descriptor->fd_st = FD_CLOSE;
+			if (file_descriptor->fd_file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				file_descriptor->fd_t = FDT_OTHER;
+				return;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			file_close (file_descriptor->fd_file);
+			file_descriptor->fd_file = NULL;
+			return;
+		case FD_CLOSE:
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->fd_file == NULL);
+			return;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
 /* The dup2() system call creates a copy of the file descriptor oldfd with
@@ -334,38 +559,136 @@ syscall_close (int fd UNUSED) {
  * modified by using seek on one of the descriptors, the offset is also
  * changed for the other. */
 static int
-syscall_dup2 (int oldfd UNUSED, int newfd UNUSED) {
-	ASSERT (0);
+syscall_dup2 (int oldfd, int newfd) {
+	struct fd_table *fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *old_file_descriptor, *new_file_descriptor;
+
+	ASSERT (fd_t->table);
+	ASSERT (fd_t->size <= MAX_FD + 1);
+
+	if (oldfd < 0 || oldfd > MAX_FD || newfd < 0 || newfd > MAX_FD)
+		return -1;
+	old_file_descriptor = &fd_t->table[oldfd];
+	switch (old_file_descriptor->fd_st) {
+		case FD_OPEN:
+			ASSERT ((old_file_descriptor->fd_file == NULL
+							&& (old_file_descriptor->fd_t == FDT_STDIN
+									|| old_file_descriptor->fd_t == FDT_STDOUT))
+					|| (old_file_descriptor->fd_file != NULL
+							&& old_file_descriptor->fd_t == FDT_OTHER));
+			if (oldfd == newfd)
+				return newfd;
+			syscall_close (newfd);
+			new_file_descriptor = &fd_t->table[newfd];
+			ASSERT (new_file_descriptor->fd_st == FD_CLOSE
+					&& new_file_descriptor->fd_t == FDT_OTHER
+					&& new_file_descriptor->fd_file == NULL);
+			if (old_file_descriptor->fd_file) {
+				new_file_descriptor->fd_file = file_duplicate (old_file_descriptor->fd_file);
+				if (new_file_descriptor->fd_file == NULL)
+					return -1;
+				/////////////////////////////////////////////////////////////////////////////TODO: Link somehow old and new files
+			}
+			new_file_descriptor->fd_st = FD_OPEN;
+			new_file_descriptor->fd_t = old_file_descriptor->fd_t;
+			fd_t->size++;
+			return newfd;
+		case FD_CLOSE:
+			ASSERT (old_file_descriptor->fd_t == FDT_OTHER
+					&& old_file_descriptor->fd_file == NULL);
+			return -1;
+		default:
+			ASSERT (0);
+	}
+	ASSERT (0); /* Should not be reached. */
 }
 
-//UNCOMMENT WHEN USED
+/* Given the address ADDR of a memory space of size SIZE bytes, this
+ * function checks if a memory violation occurs when trying to read from it.
+ * If ADDR points to a string, the IS_STR variable must be set to true
+ * (otherwise false) and SIZE must be 0.
+ * If there is a memory violation (or ADDR is NULL), the process will be
+ * terminated with exit status of -1, otherwise nothing happens. */
+static void
+check_mem_space_read (const void *addr_, const size_t size, const bool is_str) {
+	uint8_t *addr = (uint8_t*)addr_;
 
-//static void
-//check_address (void *addr) {
-//	if (!is_user_vaddr(addr)) /* addr is not in user va. */
-//		syscall_exit (-1);
-//}
-
+	if (addr == NULL)
+		thread_exit (-1);
+	if (is_str) { /* String assumed. */
+		ASSERT (size == 0);
+		/* Check the first byte pointed to by ADDR. */
+		if (!valid_user_addr (addr) || get_user (addr) == -1)
+			thread_exit (-1);
+		/* Check each byte of memory starting at ADDR+1 until NULL is found. */
+		while (*addr) {
+			addr++;
+			if (!valid_user_addr (addr) || get_user (addr) == -1)
+				thread_exit (-1);
+		}
+	}
+	else {
+		/* Check the SIZE-bytes of memory starting at ADDR. */
+		for (size_t i = 0; i < size; i++) {
+			if (!valid_user_addr (addr) || get_user (addr) == -1)
+				thread_exit (-1);
+			addr++;
+		}
+	}
+}
 
 /* Reads a byte at user virtual address UADDR.
  * UADDR must be below KERN_BASE.
- * Returns the byte value if successful, -1 if a segfault
- * occurred. */
-//static int
-//get_user (const uint8_t *uaddr) {
-    //int result;
-    //asm ("movl $1f, %0; movzbl %1, %0; 1:"
-         //: "=&a" (result) : "m" (*uaddr));
-    //return result;
-//}
+ * Returns the byte value if successful, -1 if a segfault occurred. */
+static int64_t
+get_user (const uint8_t *uaddr) {
+	int64_t result;
+	__asm __volatile (
+		"movabsq $done_get, %0\n"
+		"movzbq %1, %0\n"
+		"done_get:\n"
+		: "=&a" (result) : "m" (*uaddr));
+	return result;
+}
+
+/* Given the address ADDR of a memory space of size SIZE bytes, this
+ * function checks if a memory violation occurs when trying to write on it.
+ * If there is a memory violation (or ADDR is NULL), the process will be
+ * terminated with exit status of -1, otherwise nothing happens.
+ * The space will be set to 0s on success. */
+static void
+check_mem_space_write (const void *addr_, const size_t size) {
+	uint8_t *addr = (uint8_t*)addr_;
+
+	if (addr == NULL)
+		thread_exit (-1);
+	/* Check the SIZE-bytes of memory starting at ADDR. */
+	for (size_t i = 0; i < size; i++) {
+		if (!valid_user_addr (addr) || !put_user (addr, 0))
+			thread_exit (-1);
+		addr++;
+	}
+}
 
 /* Writes BYTE to user address UDST.
  * UDST must be below KERN_BASE.
  * Returns true if successful, false if a segfault occurred. */
-//static bool
-//put_user (uint8_t *udst, uint8_t byte) {
-    //int error_code;
-    //asm ("movl $1f, %0; movb %b2, %1; 1:"
-    //: "=&a" (error_code), "=m" (*udst) : "q" (byte));
-    //return error_code != -1;
-//}
+static bool
+put_user (uint8_t *udst, uint8_t byte) {
+	int64_t error_code;
+	__asm __volatile (
+		"movabsq $done_put, %0\n"
+		"movb %b2, %1\n"
+		"done_put:\n"
+		: "=&a" (error_code), "=m" (*udst) : "q" (byte));
+	return error_code != -1;
+}
+
+/* Checks if the given ADDR is in the user address space and mapped to a
+	 kernel page. Returns TRUE if these two conditions are true, FALSE
+	 otherwise. */
+static bool
+valid_user_addr (const uint8_t *addr) {
+	struct thread *curr = thread_current ();
+	return (is_user_vaddr(addr) && pml4_get_page (curr->pml4, addr));
+}

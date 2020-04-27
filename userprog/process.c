@@ -24,10 +24,13 @@
 #include "vm/vm.h"
 #endif
 
+static struct terminated_child_st *terminated_child (tid_t child_tid);
+static bool active_child (tid_t child_tid);
 static void process_cleanup (void);
 static bool load (const char *command, struct intr_frame *if_);
-static void initd (void *f_name);
+static void initd (void *command);
 static void __do_fork (void *);
+static bool duplicate_fd_table (struct fd_table *parent_fd_t);
 
 /* General process initializer for initd and other process. */
 static void
@@ -35,39 +38,45 @@ process_init (void) {
 	struct thread *current = thread_current ();
 }
 
-/* Starts the first userland program, called "initd", loaded from FILE_NAME.
+/* Starts the first userland program, called "initd", loaded from the first
+ * word inside COMMAND.
  * The new thread may be scheduled (and may even exit)
  * before process_create_initd() returns. Returns the initd's
  * thread id, or TID_ERROR if the thread cannot be created.
  * Notice that THIS SHOULD BE CALLED ONCE. */
 tid_t
-process_create_initd (const char *file_name) {
-	char *fn_copy;
+process_create_initd (const char *command) {
+	char *command_copy, *file_name, command_buf[strlen (command) +1], *save_ptr;
 	tid_t tid;
 
-	/* Make a copy of FILE_NAME.
-	 * Otherwise there's a race between the caller and load(). */
-	fn_copy = palloc_get_page (0);
-	if (fn_copy == NULL)
-		return TID_ERROR;
-	strlcpy (fn_copy, file_name, PGSIZE);
+	/* Get file_name. */
+	strlcpy (command_buf, command, strlen (command) +1);
+	file_name = strtok_r (command_buf, " ", &save_ptr);
+	ASSERT (file_name != NULL);
 
-	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
+	/* Make a copy of COMMAND.
+	 * Otherwise there's a race between the caller and load(). */
+	command_copy = palloc_get_page (0);
+	if (command_copy == NULL)
+		return TID_ERROR;
+	strlcpy (command_copy, command, PGSIZE);
+
+	/* Create a new thread to execute COMMAND. */
+	tid = thread_create (file_name, PRI_DEFAULT, initd, command_copy);
 	if (tid == TID_ERROR)
-		palloc_free_page (fn_copy);
+		palloc_free_page (command_copy);
 	return tid;
 }
 
 /* A thread function that launches first user process. */
 static void
-initd (void *f_name) {
+initd (void *command) {
 #ifdef VM
 	supplemental_page_table_init (&thread_current ()->spt);
 #endif
 
 	process_init ();
-	if (process_exec (f_name) < 0)
+	if (process_exec (command) < 0)
 		PANIC("Fail to launch initd\n");
 	NOT_REACHED ();
 }
@@ -75,10 +84,34 @@ initd (void *f_name) {
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t
-process_fork (const char *name, struct intr_frame *if_ UNUSED) {
+process_fork (const char *name, struct intr_frame *if_) {
+	struct thread *curr = thread_current ();
+	tid_t child_tid;
+	struct terminated_child_st *child_st;
+	struct parent_process_frame parent_frame;
+
+	ASSERT (curr->fork_sema.value == 0);
+	ASSERT (list_size (&curr->fork_sema.waiters) == 0);
+
 	/* Clone current thread to new thread.*/
-	return thread_create (name,
-			PRI_DEFAULT, __do_fork, thread_current ());
+	parent_frame.parent = curr;
+	parent_frame.f = if_;
+	child_tid = thread_create (name, PRI_DEFAULT, __do_fork, &parent_frame);
+	if (child_tid == TID_ERROR)
+		return TID_ERROR;
+	/* Wait for child to finish forking. */
+	sema_down (&curr->fork_sema);
+	/* Check if the child finished with some error. */
+	if (!active_child (child_tid)) {
+		child_st = terminated_child (child_tid);
+		if (child_st == NULL)
+			return TID_ERROR;
+		if (child_st->exit_status == -1) {
+			process_wait (child_tid);
+			return TID_ERROR;
+		}
+	}
+	return child_tid;
 }
 
 #ifndef VM
@@ -92,54 +125,60 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	void *newpage;
 	bool writable;
 
-	/* 1. DONE: If the parent_page is kernel page, then return immediately. */
-	if (is_kern_pte(pte)){
-		return false;
-	}
+	/* If the parent_page is kernel page, then return immediately (skip). */
+	if (is_kern_pte (pte))
+		return true;
 
-	/* 2. Resolve VA from the parent's page map level 4. */
+	/* Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
 
-	/* 3. DONE: Allocate new PAL_USER page for the child and set result to
-	 *    DONE: NEWPAGE. */
-	newpage = palloc_get_page(PAL_USER);
-	if (newpage == NULL){
-		return false; /*is this the correct error handling?*/
-	}
+	/* Allocate new PAL_USER page for the child and set result to NEWPAGE. */
+	newpage = palloc_get_page (PAL_USER);
+	if (newpage == NULL)
+		return false;
 
-	/* 4. DONE: Duplicate parent's page to the new page and
-	 *    DONE: check whether parent's page is writable or not (set WRITABLE
-	 *    DONE: according to the result). */
-	 memcpy(newpage, parent_page, PGSIZE);
-	 writable = is_writable(pte);
-	/* 5. Add new page to child's page table at address VA with WRITABLE
-	 *    permission. */
+	/* Duplicate parent's page to the new page and check whether parent's
+	 * page is writable or not (set WRITABLE according to the result). */
+	memcpy (newpage, parent_page, PGSIZE);
+	writable = is_writable (pte);
+
+	/* Add new page to child's page table at address VA with WRITABLE
+	 * permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
-		/* 6. DONE?: if fail to insert page, do error handling. */
-		palloc_free_page(newpage);
+		/* Fail to insert page. */
+		palloc_free_page (newpage);
 		return false;
 	}
 	return true;
 }
 #endif
 
-/* A thread function that copies parent's execution context.
- * Hint) parent->tf does not hold the userland context of the process.
- *       That is, you are required to pass second argument of process_fork to
- *       this function. */
+/* A thread function that copies parent's execution context. */
 static void
 __do_fork (void *aux) {
-	struct intr_frame if_;
-	struct thread *parent = (struct thread *) aux;
+	struct intr_frame if_, *parent_if;
+	struct parent_process_frame *parent_frame;
+	struct thread *parent;
 	struct thread *current = thread_current ();
-	/* DONE: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if = parent->tf;
-	bool succ = true;
 
-	/* 1. Read the cpu context to local stack. */
+	parent_frame = (struct parent_process_frame *)aux;
+	parent = parent_frame->parent;
+	/* Pass the parent_if. (i.e. process_fork()'s if_) */
+	parent_if = parent_frame->f;
+
+	ASSERT (thread_is_user (parent));
+	ASSERT (parent->fork_sema.value == 0);
+
+	/* Make sure parent waits for forking finalization. */
+	while (list_size (&parent->fork_sema.waiters) == 0)
+		thread_yield ();
+
+	/* Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	/* Return 0 on child's fork() call. */
+	if_.R.rax = 0;
 
-	/* 2. Duplicate PT */
+	/* Duplicate PT */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
@@ -154,26 +193,88 @@ __do_fork (void *aux) {
 		goto error;
 #endif
 
-	/* TODO: Your code goes here.
-	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
-	 * TODO:       in include/filesys/file.h. Note that parent should not return
-	 * TODO:       from the fork() until this function successfully duplicates
-	 * TODO:       the resources of parent.*/
+	/* Duplicate parent's fd table. */
+	if (!duplicate_fd_table (&parent->fd_t))
+		goto error;
+
+	/* Reopen parent's executable file and deny write on it. */
+	current->executable = file_reopen (parent->executable);
+	if (current->executable == NULL)
+		goto error;
+	file_deny_write (current->executable);
 
 	process_init ();
 
-	/* Finally, switch to the newly created process. */
-	if (succ)
-		do_iret (&if_);
+	/* Finally, switch to the newly created process and wake up parent.
+		 This part should be reched ONLY on a successful forking. */
+	sema_up (&parent->fork_sema);
+	do_iret (&if_);
+	ASSERT (0); /* Should not be reached. */
 error:
-	thread_exit ();
+	sema_up (&parent->fork_sema);
+	thread_exit (-1);
+}
+
+/* Duplicates the given PARENT FD TABLE into the current thread's. Returns
+ * TRUE on success, FALSE otherwise. */
+static bool
+duplicate_fd_table (struct fd_table *parent_fd_t) {
+	struct fd_table *curr_fd_t = &thread_current ()->fd_t;
+	struct file_descriptor *parent_fd, *curr_fd;
+	enum intr_level old_level;
+
+	ASSERT (parent_fd_t);
+	ASSERT (parent_fd_t->table);
+	ASSERT (curr_fd_t);
+	ASSERT (curr_fd_t->table);
+
+	old_level = intr_disable ();
+	/* Set table size. */
+	curr_fd_t->size = parent_fd_t->size;
+
+	/* Copy file descriptors. */
+	for (int i = 0; i <= MAX_FD; i++) {
+		parent_fd = &parent_fd_t->table[i];
+		curr_fd = &curr_fd_t->table[i];
+		/* Check correctness of current thread's fd table. */
+		ASSERT (curr_fd->fd_file == NULL
+				&& ((curr_fd->fd_st == FD_OPEN
+								&& (curr_fd->fd_t == FDT_STDIN || curr_fd->fd_t == FDT_STDOUT))
+						|| (curr_fd->fd_st == FD_CLOSE && curr_fd->fd_t == FDT_OTHER)));
+		/* Copy fd. */
+		curr_fd->fd_st = parent_fd->fd_st;
+		curr_fd->fd_t = parent_fd->fd_t;
+		switch (parent_fd->fd_st) {
+			case FD_OPEN:
+				if (parent_fd->fd_file == NULL) {
+					ASSERT (parent_fd->fd_t == FDT_STDIN || parent_fd->fd_t == FDT_STDOUT);
+				} else { /* Open file. */
+					ASSERT (parent_fd->fd_t == FDT_OTHER);
+					curr_fd->fd_file = file_duplicate (parent_fd->fd_file);
+					if (curr_fd->fd_file == NULL) {
+						curr_fd->fd_st = FD_CLOSE;
+						curr_fd->fd_t = FDT_OTHER;
+						intr_set_level (old_level);
+						return false;
+					}
+				}
+				break;
+			case FD_CLOSE:
+				ASSERT (parent_fd->fd_t == FDT_OTHER && parent_fd->fd_file == NULL);
+				break;
+			default:
+				ASSERT (0);
+		}
+	}
+	intr_set_level (old_level);
+	return true;
 }
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
 int
-process_exec (void *f_name) {
-	char *file_name = f_name;
+process_exec (void *command_) {
+	char *command = command_;
 	bool success;
 
 	/* We cannot use the intr_frame in the thread structure.
@@ -188,10 +289,10 @@ process_exec (void *f_name) {
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (command, &_if);
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
+	palloc_free_page (command);
 	if (!success)
 		return -1;
 
@@ -211,25 +312,153 @@ process_exec (void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) {
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
-	timer_msleep (5000);//////////////////////////////////////////////////////////////////////////////////////TEMPORARY
-	return -1;
+process_wait (tid_t child_tid) {
+	struct terminated_child_st *child_st;
+	int exit_status;
+
+	if (!terminated_child (child_tid) && !active_child (child_tid))
+		return -1;
+	while (active_child (child_tid) && !terminated_child (child_tid))
+		thread_yield (); //Wait for child's termination
+	/* Get child's exit status. */
+	child_st = terminated_child (child_tid);
+	ASSERT (child_st);
+	exit_status = child_st->exit_status;
+	/* Clean up. */
+	list_remove (&child_st->elem);
+	free (child_st);
+	return exit_status;
+}
+
+/* Given a CHILD_TID tid, this function tries to find if such tid
+ * corresponds to a current thread's terminated child's tid by looking at
+ * its terminated_children_st list. If such tid is found, the corresponding
+ * terminated_child_st structure (created on its termination) is returned
+ * as a pointer.
+ * Returns NULL if such element is not found. */
+static struct terminated_child_st *
+terminated_child (tid_t child_tid) {
+	struct thread *curr = thread_current ();
+	struct list_elem *child_st_elem;
+	struct terminated_child_st *child_st;
+	enum intr_level old_level;
+
+	old_level = intr_disable ();
+	if (!list_empty (&curr->terminated_children_st)) {
+		for (child_st_elem = list_front (&curr->terminated_children_st);
+				child_st_elem != list_end (&curr->terminated_children_st);
+				child_st_elem = list_next (child_st_elem)) {
+			child_st = list_entry (child_st_elem, struct terminated_child_st, elem);
+			if (child_st->pid == child_tid) {
+				intr_set_level (old_level);
+				return child_st;
+			}
+		}
+	}
+	intr_set_level (old_level);
+	return NULL;
+}
+
+/* Given a CHILD_TID tid, this function tries to find if such tid
+ * corresponds to a current thread's active child's tid by looking at
+ * its active_children list. If such child is found returns TRUE, otherwise
+ * FALSE. */
+static bool
+active_child (tid_t child_tid) {
+	struct thread *child, *curr = thread_current ();
+	struct list_elem *child_elem;
+	enum intr_level old_level;
+
+	old_level = intr_disable ();
+	if (!list_empty (&curr->active_children)) {
+		for (child_elem = list_front (&curr->active_children);
+				child_elem != list_end (&curr->active_children);
+				child_elem = list_next (child_elem)) {
+			child = list_entry (child_elem, struct thread, active_child_elem);
+			if (child->tid == child_tid) {
+				intr_set_level (old_level);
+				return true;
+			}
+		}
+	}
+	intr_set_level (old_level);
+	return false;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void
-process_exit (void) {
-	struct thread *curr = thread_current ();
-	if (thread_is_user ()) {
-		ASSERT (curr->executable);
-		file_close(curr->executable);
-		printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+process_exit (int status) {
+	struct thread *child, *curr = thread_current ();
+	struct terminated_child_st *child_st;
+	struct list_elem *child_elem;
+	struct file_descriptor *fd;
+
+	ASSERT (intr_get_level () == INTR_OFF);
+
+	curr->exit_status = status;
+	if (thread_is_user (curr)) {
+		ASSERT (curr->fd_t.table);
+		ASSERT (curr->fd_t.size <= MAX_FD + 1);
+		/* Report termination to parent, if any. */
+		if (curr->parent) {
+			/* Remove from parent's active_children list. */
+			list_remove (&curr->active_child_elem);
+			/* Report exit status to parent. */
+			child_st = (struct terminated_child_st*)malloc (sizeof (struct terminated_child_st));
+			if (child_st != NULL) {
+				child_st->pid = curr->tid;
+				child_st->exit_status = curr->exit_status;
+				list_push_back (&curr->parent->terminated_children_st, &child_st->elem);
+			}
+		}
+		/* Destroy file descriptor table. */
+		for (int i = 0; i <= MAX_FD; i++) {
+			fd = &curr->fd_t.table[i];
+			switch (fd->fd_st) {
+				case FD_OPEN:
+					if (fd->fd_file == NULL) {
+						ASSERT (fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT);
+						break;
+					}
+					ASSERT (fd->fd_t == FDT_OTHER);
+					file_close (fd->fd_file);
+					break;
+				case FD_CLOSE:
+					ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL);
+					break;
+				default:
+					ASSERT (0);
+			}
+		}
+		free (curr->fd_t.table);
+		if (!thread_tests) {
+			if (curr->executable)
+				file_close(curr->executable);
+			else //Debugging purposes
+				ASSERT (status == -1);
+			/* Print exit status. */
+			printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+		}
+	} else { //Debugging purposes
+		ASSERT (curr->executable == NULL);
+		ASSERT (curr->fd_t.table == NULL);
 	}
-	else
-		ASSERT (curr->executable == NULL); //Debugging purposes
+	/* Destroy unfreed information of finished child processes (this occurs
+	 * when wait() is not called on a pid). */
+	while (!list_empty (&curr->terminated_children_st)) {
+		child_elem = list_pop_front (&curr->terminated_children_st);
+		child_st = list_entry (child_elem, struct terminated_child_st, elem);
+		free (child_st);
+	}
+	/* Report termination to children. */
+	if (!list_empty (&curr->active_children)) {
+		for (child_elem = list_front (&curr->active_children);
+				child_elem != list_end (&curr->active_children);
+				child_elem = list_next (child_elem)) {
+			child = list_entry (child_elem, struct thread, active_child_elem);
+			child->parent = NULL;
+		}
+	}
 	process_cleanup ();
 }
 
@@ -354,9 +583,12 @@ load (const char *command, struct intr_frame *if_) {
 
 	/* Avoid race conditions by copying the command. */
 	command_copy = (char*)malloc (strlen (command) + 1);
+	if (command_copy == NULL)
+		return false;
   strlcpy (command_copy, command, strlen (command) + 1);
   file_name = strtok_r (command_copy, " ", &save_ptr);
-	ASSERT (file_name != NULL);
+	if (file_name == NULL)
+		goto done;
 
 	/* Open executable file. */
 	file = filesys_open (file_name);
@@ -364,6 +596,7 @@ load (const char *command, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	ASSERT (!t->executable);
 	t->executable = file; /* Assign executable file. */
 	file_deny_write(t->executable); /* Deny write. */
 
@@ -477,6 +710,7 @@ parse_command (int argc, char *file_name, char *save_ptr) {
 
 	if (argc == 0) return NULL;
   argv = (char**)malloc (argc * sizeof (char*));
+	ASSERT (argv);
   /* Add all the arguments to ARGV (including FILE_NAME). */
   argv[0] = file_name;
   for (int i = 1; i < argc; i++) {
@@ -633,12 +867,14 @@ setup_stack (struct intr_frame *if_, const int argc, char **argv) {
 				esp -= sizeof (char*);
 				memcpy (esp, &argv[i], sizeof (char*));
 		}
-		/* Set registers. */
+		/* Set argument registers. */
 		if_->R.rdi = (uint64_t)argc;
 		if_->R.rsi = (uint64_t)esp;
 		/* Leave a space for the return address. */
 		esp -= sizeof (void*);
 		memset (esp, 0, sizeof (void*));
+		/* Set process' initial stack pointer. */
+		if_->rsp = (uintptr_t)esp;
 	}
 	return success;
 }
