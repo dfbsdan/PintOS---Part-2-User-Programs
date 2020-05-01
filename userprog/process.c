@@ -235,7 +235,6 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 
 	/* Copy file descriptors. */
 	for (int i = 0; i <= MAX_FD; i++) {
-		empty = true;
 		parent_fd = &parent_fd_t->table[i];
 		curr_fd = &curr_fd_t->table[i];
 		/* Check correctness of current thread's fd table. */
@@ -248,7 +247,7 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 		curr_fd->fd_t = parent_fd->fd_t;
 		curr_fd->dup_fds = NULL;
 		if (parent_fd->fd_st == FD_OPEN){
-			ASSERT(parent_fd->dup_fds != NULL);
+			ASSERT(parent_fd->dup_fds != NULL && parent_fd->dup_fds[i] == 1);
 			for (int k = 0; k<=MAX_FD; k++){
 				if (parent_fd->dup_fds[k] == 1){
 					if (k < i) {
@@ -272,6 +271,12 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 			}
 			ASSERT(curr_fd->dup_fds !=NULL);
 		}
+	}
+
+	for (int i = 0; i <= MAX_FD; i++) {
+		empty = true;
+		parent_fd = &parent_fd_t->table[i];
+		curr_fd = &curr_fd_t->table[i];
 		switch (parent_fd->fd_st) {
 			case FD_OPEN:
 				if (parent_fd->fd_file == NULL) {
