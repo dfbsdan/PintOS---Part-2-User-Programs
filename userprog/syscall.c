@@ -15,6 +15,7 @@
 #include "filesys/file.h"
 #include "devices/input.h"
 #include "intrinsic.h"
+#include "threads/malloc.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
@@ -514,6 +515,7 @@ static void
 syscall_close (int fd) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
+	bool empty = true;
 
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
@@ -523,7 +525,6 @@ syscall_close (int fd) {
 	file_descriptor = &fd_t->table[fd];
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
-			bool empty = true;
 			fd_t->size--;
 			file_descriptor->fd_st = FD_CLOSE;
 			if (file_descriptor->fd_file == NULL) {
@@ -534,7 +535,7 @@ syscall_close (int fd) {
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
 			file_descriptor->dup_fds[fd] = 0;
-			for (i = 0; i < 128; i++) {
+			for (int i = 0; i < 128; i++) {
 					if (file_descriptor->dup_fds[i] == 1)
 						empty = false;
 			}
