@@ -256,10 +256,15 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 					}
 					else if (k == i) {
 						curr_fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
-						break;
+						curr_fd->dup_fds[i] = 1;
 					}
 					else{
-						ASSERT(0);
+						if (curr_fd->dup_fds != NULL){
+							curr_fd->dup_fds[k] = 1;
+						}
+						else{
+							ASSERT(0);
+						}
 					}
 				}
 			}
