@@ -222,6 +222,7 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 	struct fd_table *curr_fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *parent_fd, *curr_fd, *prev_fd;
 	enum intr_level old_level;
+	bool empty;
 
 	ASSERT (parent_fd_t);
 	ASSERT (parent_fd_t->table);
@@ -234,6 +235,7 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 
 	/* Copy file descriptors. */
 	for (int i = 0; i <= MAX_FD; i++) {
+		empty = true;
 		parent_fd = &parent_fd_t->table[i];
 		curr_fd = &curr_fd_t->table[i];
 		/* Check correctness of current thread's fd table. */
@@ -280,7 +282,14 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 					if (curr_fd->fd_file == NULL) {
 						curr_fd->fd_st = FD_CLOSE;
 						curr_fd->fd_t = FDT_OTHER;
-						free(curr_fd->dup_fds);
+						curr_fd->dup_fds[i] = 0;
+						for (int j = 0; j < 128; j++) {
+								if (file_descriptor->dup_fds[j] == 1)
+									empty = false;
+						}
+						if (empty){
+							free(curr_fd->dup_fds);
+						}
 						curr_fd->dup_fds = NULL;
 						intr_set_level (old_level);
 						return false;
