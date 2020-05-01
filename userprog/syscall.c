@@ -300,6 +300,8 @@ create_file_descriptor (struct file *file) {
 				ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL);
 				fd->fd_st = FD_OPEN;
 				fd->fd_file = file;
+				fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
+				fd->dup_fds[i] = 1;
 				fd_t->size++;
 				return i;
 			default:
@@ -521,6 +523,8 @@ syscall_close (int fd) {
 	file_descriptor = &fd_t->table[fd];
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
+			bool empty = true;
+			int *newdup[128];
 			fd_t->size--;
 			file_descriptor->fd_st = FD_CLOSE;
 			if (file_descriptor->fd_file == NULL) {
@@ -530,8 +534,16 @@ syscall_close (int fd) {
 				return;
 			}
 			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			file_close (file_descriptor->fd_file);
+			file_descriptor->dup_fds[fd] = 0;
+			for (i = 0; i < 128; i++) {
+					if (file_descriptor->dup_fds[i] == 1)
+						empty = false;
+			}
+			if (empty)
+				file_close (file_descriptor->fd_file);
+				free(file_descriptor->dup_fds);
 			file_descriptor->fd_file = NULL;
+			file_descriptor->dup_fds = NULL;
 			return;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
@@ -584,13 +596,16 @@ syscall_dup2 (int oldfd, int newfd) {
 					&& new_file_descriptor->fd_t == FDT_OTHER
 					&& new_file_descriptor->fd_file == NULL);
 			if (old_file_descriptor->fd_file) {
-				new_file_descriptor->fd_file = file_duplicate (old_file_descriptor->fd_file);
+				new_file_descriptor->fd_file = old_file_descriptor->fd_file;
 				if (new_file_descriptor->fd_file == NULL)
 					return -1;
 				/////////////////////////////////////////////////////////////////////////////TODO: Link somehow old and new files
 			}
 			new_file_descriptor->fd_st = FD_OPEN;
 			new_file_descriptor->fd_t = old_file_descriptor->fd_t;
+			free(new_file_descriptor->dup_fds);
+			new_file_descriptor->dup_fds = old_file_descriptor->dup_fds;
+			new_file_descriptor->dup_fds[newfd] = 1;
 			fd_t->size++;
 			return newfd;
 		case FD_CLOSE:

@@ -220,7 +220,7 @@ error:
 static bool
 duplicate_fd_table (struct fd_table *parent_fd_t) {
 	struct fd_table *curr_fd_t = &thread_current ()->fd_t;
-	struct file_descriptor *parent_fd, *curr_fd;
+	struct file_descriptor *parent_fd, *curr_fd, *prev_fd;
 	enum intr_level old_level;
 
 	ASSERT (parent_fd_t);
@@ -244,6 +244,22 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 		/* Copy fd. */
 		curr_fd->fd_st = parent_fd->fd_st;
 		curr_fd->fd_t = parent_fd->fd_t;
+		curr_fd->dup_fds = NULL;
+		for (int k = 0; k<=MAX_FD; k++){
+			if (parent_fd->dup_fds[k] == 1){
+				if (k < i) {
+					prev_fd = &curr_fd_t->table[k];
+					curr_fd->dup_fds = prev_fd->dup_fds;
+				}
+				else if (k == i) {
+					curr_fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
+				}
+				else{
+					ASSERT(0);
+				}
+			}
+		}
+		ASSERT(curr_fd->dup_fds != NULL);
 		switch (parent_fd->fd_st) {
 			case FD_OPEN:
 				if (parent_fd->fd_file == NULL) {
@@ -254,13 +270,15 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 					if (curr_fd->fd_file == NULL) {
 						curr_fd->fd_st = FD_CLOSE;
 						curr_fd->fd_t = FDT_OTHER;
+						free(curr_fd->dup_fds);
+						curr_fd->dup_fds = NULL;
 						intr_set_level (old_level);
 						return false;
 					}
 				}
 				break;
 			case FD_CLOSE:
-				ASSERT (parent_fd->fd_t == FDT_OTHER && parent_fd->fd_file == NULL);
+				ASSERT (parent_fd->fd_t == FDT_OTHER && parent_fd->fd_file == NULL && parent_fd->dup_fds == NULL);
 				break;
 			default:
 				ASSERT (0);
