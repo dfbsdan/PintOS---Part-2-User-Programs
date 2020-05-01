@@ -527,21 +527,26 @@ syscall_close (int fd) {
 		case FD_OPEN:
 			fd_t->size--;
 			file_descriptor->fd_st = FD_CLOSE;
-			if (file_descriptor->fd_file == NULL) {
-				ASSERT (file_descriptor->fd_t == FDT_STDIN
-						|| file_descriptor->fd_t == FDT_STDOUT);
-				file_descriptor->fd_t = FDT_OTHER;
-				return;
-			}
-			ASSERT (file_descriptor->fd_t == FDT_OTHER);
 			file_descriptor->dup_fds[fd] = 0;
 			for (int i = 0; i < 128; i++) {
 					if (file_descriptor->dup_fds[i] == 1)
 						empty = false;
 			}
-			if (empty)
+			if (file_descriptor->fd_file == NULL) {
+				ASSERT (file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT);
+				file_descriptor->fd_t = FDT_OTHER;
+				if (empty){
+					free(file_descriptor->dup_fds);
+				}
+				file_descriptor->dup_fds = NULL;
+				return;
+			}
+			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			if (empty){
 				file_close (file_descriptor->fd_file);
 				free(file_descriptor->dup_fds);
+			}
 			file_descriptor->fd_file = NULL;
 			file_descriptor->dup_fds = NULL;
 			return;
