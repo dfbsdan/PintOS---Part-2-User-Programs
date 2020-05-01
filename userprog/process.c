@@ -247,7 +247,8 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 		curr_fd->fd_t = parent_fd->fd_t;
 		curr_fd->dup_fds = NULL;
 		if (parent_fd->fd_st == FD_OPEN){
-			ASSERT(parent_fd->dup_fds != NULL && parent_fd->dup_fds[i] == 1);
+			ASSERT(parent_fd->dup_fds != NULL);
+			ASSERT(parent_fd->dup_fds[i] == 1);
 			for (int k = 0; k<=MAX_FD; k++){
 				if (parent_fd->dup_fds[k] == 1){
 					if (k < i) {
