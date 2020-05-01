@@ -252,9 +252,11 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 					if (k < i) {
 						prev_fd = &curr_fd_t->table[k];
 						curr_fd->dup_fds = prev_fd->dup_fds;
+						break;
 					}
 					else if (k == i) {
 						curr_fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
+						break;
 					}
 					else{
 						ASSERT(0);
