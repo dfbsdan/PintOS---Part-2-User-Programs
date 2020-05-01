@@ -263,6 +263,7 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 					}
 				}
 			}
+			ASSERT(curr_fd->dup_fds !=NULL);
 		}
 		switch (parent_fd->fd_st) {
 			case FD_OPEN:
