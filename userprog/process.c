@@ -284,7 +284,7 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 						curr_fd->fd_t = FDT_OTHER;
 						curr_fd->dup_fds[i] = 0;
 						for (int j = 0; j < 128; j++) {
-								if (file_descriptor->dup_fds[j] == 1)
+								if (curr_fd->dup_fds[j] == 1)
 									empty = false;
 						}
 						if (empty){
