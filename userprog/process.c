@@ -245,21 +245,23 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 		curr_fd->fd_st = parent_fd->fd_st;
 		curr_fd->fd_t = parent_fd->fd_t;
 		curr_fd->dup_fds = NULL;
-		for (int k = 0; k<=MAX_FD; k++){
-			if (parent_fd->dup_fds[k] == 1){
-				if (k < i) {
-					prev_fd = &curr_fd_t->table[k];
-					curr_fd->dup_fds = prev_fd->dup_fds;
-				}
-				else if (k == i) {
-					curr_fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
-				}
-				else{
-					ASSERT(0);
+		if (parent_fd->fd_st == FD_OPEN){
+			ASSERT(parent_fd->dup_fds != NULL);
+			for (int k = 0; k<=MAX_FD; k++){
+				if (parent_fd->dup_fds[k] == 1){
+					if (k < i) {
+						prev_fd = &curr_fd_t->table[k];
+						curr_fd->dup_fds = prev_fd->dup_fds;
+					}
+					else if (k == i) {
+						curr_fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
+					}
+					else{
+						ASSERT(0);
+					}
 				}
 			}
 		}
-		ASSERT(curr_fd->dup_fds != NULL);
 		switch (parent_fd->fd_st) {
 			case FD_OPEN:
 				if (parent_fd->fd_file == NULL) {
