@@ -524,7 +524,6 @@ syscall_close (int fd) {
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			bool empty = true;
-			int *newdup[128];
 			fd_t->size--;
 			file_descriptor->fd_st = FD_CLOSE;
 			if (file_descriptor->fd_file == NULL) {
