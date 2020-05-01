@@ -684,10 +684,12 @@ init_fd_table (struct fd_table *fd_t) {
 	fd->fd_st = FD_OPEN;
 	fd->fd_t = FDT_STDIN;
 	fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
+	fd->dup_fds[0] = 1;
 	fd = &fd_t->table[1];
 	fd->fd_st = FD_OPEN;
 	fd->fd_t = FDT_STDOUT;
 	fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
+	fd->dup_fds[1] = 1;
 	/* Initialize remaining fds. */
 	for (i = 2; i <= MAX_FD; i++) {
 		fd = &fd_t->table[i];
