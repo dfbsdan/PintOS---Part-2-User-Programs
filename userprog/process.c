@@ -468,7 +468,7 @@ process_exit (int status) {
 					ASSERT (fd->fd_t == FDT_OTHER);
 					fd->dup_fds[i] = 0;
 					for (int k = 0; k < 128; k++) {
-							if (file_descriptor->dup_fds[k] == 1)
+							if (fd->dup_fds[k] == 1)
 								empty = false;
 					}
 					if (empty){
