@@ -601,7 +601,7 @@ syscall_dup2 (int oldfd, int newfd) {
 					&& new_file_descriptor->fd_t == FDT_OTHER
 					&& new_file_descriptor->fd_file == NULL);
 			if (old_file_descriptor->fd_file) {
-				new_file_descriptor->fd_file = file_duplicate(old_file_descriptor->fd_file);
+				new_file_descriptor->fd_file = old_file_descriptor->fd_file;
 				if (new_file_descriptor->fd_file == NULL)
 					return -1;
 				/////////////////////////////////////////////////////////////////////////////TODO: Link somehow old and new files
