@@ -472,7 +472,6 @@ process_exit (int status) {
 								empty = false;
 					}
 					if (empty){
-						printf(fd->fd_file->deny_write ? "true" : "false");
 						file_close (fd->fd_file);
 					}
 					fd->dup_fds = NULL;
