@@ -608,7 +608,6 @@ syscall_dup2 (int oldfd, int newfd) {
 			}
 			new_file_descriptor->fd_st = FD_OPEN;
 			new_file_descriptor->fd_t = old_file_descriptor->fd_t;
-			free(new_file_descriptor->dup_fds);
 			new_file_descriptor->dup_fds = old_file_descriptor->dup_fds;
 			new_file_descriptor->dup_fds[newfd] = 1;
 			fd_t->size++;
