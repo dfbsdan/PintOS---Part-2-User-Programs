@@ -435,6 +435,8 @@ process_exit (int status) {
 	struct terminated_child_st *child_st;
 	struct list_elem *child_elem;
 	struct file_descriptor *fd;
+	bool empty = true;
+
 
 	ASSERT (intr_get_level () == INTR_OFF);
 
@@ -464,7 +466,17 @@ process_exit (int status) {
 						break;
 					}
 					ASSERT (fd->fd_t == FDT_OTHER);
-					file_close (fd->fd_file);
+					fd->dup_fds[i] = 0;
+					for (int k = 0; k < 128; k++) {
+							if (file_descriptor->dup_fds[k] == 1)
+								empty = false;
+					}
+					if (empty){
+						free(fd->dup_fds);
+						file_close (fd->fd_file);
+					}
+					fd->dup_fds = NULL;
+					fd->fd_file = NULL;
 					break;
 				case FD_CLOSE:
 					ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL);
