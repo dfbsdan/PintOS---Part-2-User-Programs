@@ -465,7 +465,7 @@ process_exit (int status) {
 						ASSERT (fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT);
 						break;
 					}
-					ASSERT (fd->fd_t == FDT_OTHER);
+					ASSERT (fd->fd_t == FDT_OTHER && fd->dup_fds != NULL);
 					fd->dup_fds[i] = 0;
 					for (int k = 0; k < 128; k++) {
 							if (fd->dup_fds[k] == 1)
