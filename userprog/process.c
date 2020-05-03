@@ -246,10 +246,10 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 		curr_fd = &curr_fd_t->table[i];
 		switch (curr_fd->fd_st) {
 			case FD_OPEN:
-				if (curr_fd->fd_file == NULL)
+				if (curr_fd->fd_file == NULL) {
 					ASSERT ((curr_fd->fd_t == FDT_STDIN || curr_fd->fd_t == FDT_STDOUT)
 							&& curr_fd->dup_fds == NULL);
-				else
+				} else
 					ASSERT (curr_fd->fd_t == FDT_OTHER && curr_fd->dup_fds);
 				break;
 			case FD_CLOSE:
