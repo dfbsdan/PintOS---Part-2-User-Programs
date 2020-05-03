@@ -8,6 +8,10 @@ struct file {
 	struct inode *inode;        /* File's inode. */
 	off_t pos;                  /* Current position. */
 	bool deny_write;            /* Has file_deny_write() been called? */
+	size_t open_cnt;						/* Number of different file descriptors
+																 pointing to the file.
+																 This value is not inherited on reopening
+																 nor duplicating. */
 };
 
 /* Opens a file for the given INODE, of which it takes ownership,
@@ -20,6 +24,7 @@ file_open (struct inode *inode) {
 		file->inode = inode;
 		file->pos = 0;
 		file->deny_write = false;
+		file->open_cnt = 1;
 		return file;
 	} else {
 		inode_close (inode);
@@ -47,13 +52,35 @@ file_duplicate (struct file *file) {
 	return nfile;
 }
 
+/* Used on dup2() system call in order to 'let the file know' that another file
+	 descriptor is using it. Returns the file on success, NULL on error. */
+struct file *
+file_dup2 (struct file *file) {
+	ASSERT (file
+			&& file->open_cnt >= 1
+			&& file->open_cnt <= inode_open_cnt (file->inode)
+			&& inode_reopen (file->inode));
+	file->open_cnt++;
+	return file;
+}
+
+/* Returns the number of file descriptors pointing to the given FILE. */
+size_t
+file_open_cnt (struct file *file) {
+	ASSERT (file
+			&& file->open_cnt >= 1
+			&& file->open_cnt <= inode_open_cnt (file->inode));
+	return file->open_cnt;
+}
+
 /* Closes FILE. */
 void
 file_close (struct file *file) {
 	if (file != NULL) {
 		file_allow_write (file);
 		inode_close (file->inode);
-		free (file);
+		if (--file->open_cnt == 0)
+			free (file);
 	}
 }
 

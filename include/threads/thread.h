@@ -32,8 +32,10 @@ struct file_descriptor {
 		 valid file pointer unless its type is FDT_STDIN or FDT_STDOUT.
 		 If the fd is closed, FILE is always NULL */
 	struct file *fd_file;
-
-	int *dup_fds;
+	/* Holds the indexes of open duplicated file descriptors (with dup2()). Shared
+		 by all those fds that point to the same file. By default, STDIN and STDOUT
+		 file descriptors hold a NULL pointer. */
+	uint8_t *dup_fds;
 };
 
 /* Structure holding the file descriptors of a process. */

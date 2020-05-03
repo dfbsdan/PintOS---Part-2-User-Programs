@@ -650,9 +650,8 @@ init_thread (struct thread *t, const char *name, int priority,
 	list_init (&t->terminated_children_st);
 	t->fd_t.table = NULL;
 	if (t != initial_thread) {
-		if (t != idle_thread)
-			if (!init_fd_table (&t->fd_t))
-				return false;
+		if (t != idle_thread && !init_fd_table (&t->fd_t))
+			return false;
 		t->parent = thread_current ();
 		list_push_back (&t->parent->active_children, &t->active_child_elem);
 	}
@@ -683,19 +682,14 @@ init_fd_table (struct fd_table *fd_t) {
 	fd = &fd_t->table[0];
 	fd->fd_st = FD_OPEN;
 	fd->fd_t = FDT_STDIN;
-	fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
-	fd->dup_fds[0] = 1;
 	fd = &fd_t->table[1];
 	fd->fd_st = FD_OPEN;
 	fd->fd_t = FDT_STDOUT;
-	fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
-	fd->dup_fds[1] = 1;
 	/* Initialize remaining fds. */
 	for (i = 2; i <= MAX_FD; i++) {
 		fd = &fd_t->table[i];
 		fd->fd_st = FD_CLOSE;
 		fd->fd_t = FDT_OTHER;
-		fd->dup_fds = NULL;
 	}
 	return true;
 }

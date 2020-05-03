@@ -86,11 +86,11 @@ inode_create (disk_sector_t sector, off_t length) {
 				static char zeros[DISK_SECTOR_SIZE];
 				size_t i;
 
-				for (i = 0; i < sectors; i++) 
-					disk_write (filesys_disk, disk_inode->start + i, zeros); 
+				for (i = 0; i < sectors; i++)
+					disk_write (filesys_disk, disk_inode->start + i, zeros);
 			}
-			success = true; 
-		} 
+			success = true;
+		}
 		free (disk_inode);
 	}
 	return success;
@@ -110,7 +110,7 @@ inode_open (disk_sector_t sector) {
 		inode = list_entry (e, struct inode, elem);
 		if (inode->sector == sector) {
 			inode_reopen (inode);
-			return inode; 
+			return inode;
 		}
 	}
 
@@ -161,10 +161,10 @@ inode_close (struct inode *inode) {
 		if (inode->removed) {
 			free_map_release (inode->sector, 1);
 			free_map_release (inode->data.start,
-					bytes_to_sectors (inode->data.length)); 
+					bytes_to_sectors (inode->data.length));
 		}
 
-		free (inode); 
+		free (inode);
 	}
 }
 
@@ -202,7 +202,7 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset) {
 
 		if (sector_ofs == 0 && chunk_size == DISK_SECTOR_SIZE) {
 			/* Read full sector directly into caller's buffer. */
-			disk_read (filesys_disk, sector_idx, buffer + bytes_read); 
+			disk_read (filesys_disk, sector_idx, buffer + bytes_read);
 		} else {
 			/* Read sector into bounce buffer, then partially copy
 			 * into caller's buffer. */
@@ -257,7 +257,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
 		if (sector_ofs == 0 && chunk_size == DISK_SECTOR_SIZE) {
 			/* Write full sector directly to disk. */
-			disk_write (filesys_disk, sector_idx, buffer + bytes_written); 
+			disk_write (filesys_disk, sector_idx, buffer + bytes_written);
 		} else {
 			/* We need a bounce buffer. */
 			if (bounce == NULL) {
@@ -269,12 +269,12 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 			/* If the sector contains data before or after the chunk
 			   we're writing, then we need to read in the sector
 			   first.  Otherwise we start with a sector of all zeros. */
-			if (sector_ofs > 0 || chunk_size < sector_left) 
+			if (sector_ofs > 0 || chunk_size < sector_left)
 				disk_read (filesys_disk, sector_idx, bounce);
 			else
 				memset (bounce, 0, DISK_SECTOR_SIZE);
 			memcpy (bounce + sector_ofs, buffer + bytes_written, chunk_size);
-			disk_write (filesys_disk, sector_idx, bounce); 
+			disk_write (filesys_disk, sector_idx, bounce);
 		}
 
 		/* Advance. */
@@ -290,7 +290,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 /* Disables writes to INODE.
    May be called at most once per inode opener. */
 	void
-inode_deny_write (struct inode *inode) 
+inode_deny_write (struct inode *inode)
 {
 	inode->deny_write_cnt++;
 	ASSERT (inode->deny_write_cnt <= inode->open_cnt);
@@ -310,4 +310,11 @@ inode_allow_write (struct inode *inode) {
 off_t
 inode_length (const struct inode *inode) {
 	return inode->data.length;
+}
+
+/* Returns the number of times the inode has been opened. */
+int
+inode_open_cnt (const struct inode *inode) {
+	ASSERT (inode->deny_write_cnt <= inode->open_cnt);
+	return inode->open_cnt;
 }

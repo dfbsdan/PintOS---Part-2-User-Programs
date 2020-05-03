@@ -9,6 +9,8 @@ struct inode;
 struct file *file_open (struct inode *);
 struct file *file_reopen (struct file *);
 struct file *file_duplicate (struct file *file);
+struct file *file_dup2 (struct file *file);
+size_t file_open_cnt (struct file *file);
 void file_close (struct file *);
 struct inode *file_get_inode (struct file *);
 

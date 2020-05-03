@@ -293,16 +293,21 @@ create_file_descriptor (struct file *file) {
 		switch (fd->fd_st) {
 			case FD_OPEN:
 				if (fd->fd_file == NULL) {
-					ASSERT (fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT);
+					ASSERT ((fd->fd_t == FDT_STDIN || fd->fd_t == FDT_STDOUT)
+							&& fd->dup_fds == NULL);
 				} else
-					ASSERT (fd->fd_t == FDT_OTHER);
+					ASSERT (fd->fd_t == FDT_OTHER && fd->dup_fds);
 				break;
 			case FD_CLOSE:
-				ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL);
+				ASSERT (fd->fd_t == FDT_OTHER && fd->fd_file == NULL && fd->dup_fds == NULL);
+				fd->dup_fds = (uint8_t *)calloc (MAX_FD + 1, sizeof (uint8_t));
+				if (!fd->dup_fds) {
+					file_close (file);
+					return -1;
+				}
+				fd->dup_fds[i] = 1;
 				fd->fd_st = FD_OPEN;
 				fd->fd_file = file;
-				fd->dup_fds = (int *)calloc(MAX_FD + 1, sizeof(int));
-				fd->dup_fds[i] = 1;
 				fd_t->size++;
 				return i;
 			default:
@@ -327,15 +332,18 @@ syscall_filesize (int fd) {
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			if (file_descriptor->fd_file == NULL) {
-				ASSERT (file_descriptor->fd_t == FDT_STDIN
-						|| file_descriptor->fd_t == FDT_STDOUT);
+				ASSERT ((file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT)
+						&& file_descriptor->dup_fds == NULL);
 				return -1;
 			}
-			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->dup_fds);
 			return (int)file_length (file_descriptor->fd_file);
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
-					&& file_descriptor->fd_file == NULL);
+					&& file_descriptor->fd_file == NULL
+					&& file_descriptor->dup_fds == NULL);
 			return -1;
 		default:
 			ASSERT (0);
@@ -365,8 +373,9 @@ syscall_read (int fd, void *buffer, unsigned length) {
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			if (file_descriptor->fd_file == NULL) {
-				ASSERT (file_descriptor->fd_t == FDT_STDIN
-						|| file_descriptor->fd_t == FDT_STDOUT);
+				ASSERT ((file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT)
+						&& file_descriptor->dup_fds == NULL);
 				if (file_descriptor->fd_t == FDT_STDOUT)
 					return -1;
 				while (bytes_left > 0) {
@@ -376,11 +385,13 @@ syscall_read (int fd, void *buffer, unsigned length) {
 				}
 				return length;
 			}
-			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->dup_fds);
 			return (int)file_read (file_descriptor->fd_file, buffer, length);
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
-					&& file_descriptor->fd_file == NULL);
+					&& file_descriptor->fd_file == NULL
+					&& file_descriptor->dup_fds == NULL);
 			return -1;
 		default:
 			ASSERT (0);
@@ -411,8 +422,9 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			if (file_descriptor->fd_file == NULL) {
-				ASSERT (file_descriptor->fd_t == FDT_STDIN
-						|| file_descriptor->fd_t == FDT_STDOUT);
+				ASSERT ((file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT)
+						&& file_descriptor->dup_fds == NULL);
 				if (file_descriptor->fd_t == FDT_STDIN)
 					return -1;
 				/* Write to stdout. */
@@ -424,11 +436,13 @@ syscall_write (int fd, const void *buffer, unsigned length) {
 				}
 				return length;
 			}
-			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->dup_fds);
 			return (int)file_write (file_descriptor->fd_file, buffer, length);
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
-					&& file_descriptor->fd_file == NULL);
+					&& file_descriptor->fd_file == NULL
+					&& file_descriptor->dup_fds == NULL);
 			return -1;
 		default:
 			ASSERT (0);
@@ -459,16 +473,19 @@ syscall_seek (int fd, unsigned position) {
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			if (file_descriptor->fd_file == NULL) {
-				ASSERT (file_descriptor->fd_t == FDT_STDIN
-						|| file_descriptor->fd_t == FDT_STDOUT);
+				ASSERT ((file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT)
+						&& file_descriptor->dup_fds == NULL);
 				return;
 			}
-			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->dup_fds);
 			file_seek (file_descriptor->fd_file, position);
 			return;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
-					&& file_descriptor->fd_file == NULL);
+					&& file_descriptor->fd_file == NULL
+					&& file_descriptor->dup_fds == NULL);
 			return;
 		default:
 			ASSERT (0);
@@ -492,15 +509,18 @@ syscall_tell (int fd) {
 	switch (file_descriptor->fd_st) {
 		case FD_OPEN:
 			if (file_descriptor->fd_file == NULL) {
-				ASSERT (file_descriptor->fd_t == FDT_STDIN
-						|| file_descriptor->fd_t == FDT_STDOUT);
+				ASSERT ((file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT)
+						&& file_descriptor->dup_fds == NULL);
 				return 0;
 			}
-			ASSERT (file_descriptor->fd_t == FDT_OTHER);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->dup_fds);
 			return (unsigned)file_tell (file_descriptor->fd_file);
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
-					&& file_descriptor->fd_file == NULL);
+					&& file_descriptor->fd_file == NULL
+					&& file_descriptor->dup_fds == NULL);
 			return 0;
 		default:
 			ASSERT (0);
@@ -515,7 +535,6 @@ static void
 syscall_close (int fd) {
 	struct fd_table *fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *file_descriptor;
-	bool empty = true;
 
 	ASSERT (fd_t->table);
 	ASSERT (fd_t->size <= MAX_FD + 1);
@@ -527,32 +546,27 @@ syscall_close (int fd) {
 		case FD_OPEN:
 			fd_t->size--;
 			file_descriptor->fd_st = FD_CLOSE;
-			file_descriptor->dup_fds[fd] = 0;
-			for (int i = 0; i < 128; i++) {
-					if (file_descriptor->dup_fds[i] == 1)
-						empty = false;
-			}
 			if (file_descriptor->fd_file == NULL) {
-				ASSERT (file_descriptor->fd_t == FDT_STDIN
-						|| file_descriptor->fd_t == FDT_STDOUT);
+				ASSERT ((file_descriptor->fd_t == FDT_STDIN
+						|| file_descriptor->fd_t == FDT_STDOUT)
+						&& file_descriptor->dup_fds == NULL);
 				file_descriptor->fd_t = FDT_OTHER;
-				if (empty){
-					free(file_descriptor->dup_fds);
-				}
-				file_descriptor->dup_fds = NULL;
 				return;
 			}
-			ASSERT (file_descriptor->fd_t == FDT_OTHER);
-			if (empty){
-				file_close (file_descriptor->fd_file);
+			ASSERT (file_descriptor->fd_t == FDT_OTHER
+					&& file_descriptor->dup_fds);
+			if (file_open_cnt (file_descriptor->fd_file) == 1)
 				free(file_descriptor->dup_fds);
-			}
+			else
+				file_descriptor->dup_fds[fd] = 0;
+			file_close (file_descriptor->fd_file);
 			file_descriptor->fd_file = NULL;
 			file_descriptor->dup_fds = NULL;
 			return;
 		case FD_CLOSE:
 			ASSERT (file_descriptor->fd_t == FDT_OTHER
-					&& file_descriptor->fd_file == NULL);
+					&& file_descriptor->fd_file == NULL
+					&& file_descriptor->dup_fds == NULL);
 			return;
 		default:
 			ASSERT (0);
@@ -589,32 +603,34 @@ syscall_dup2 (int oldfd, int newfd) {
 	switch (old_file_descriptor->fd_st) {
 		case FD_OPEN:
 			ASSERT ((old_file_descriptor->fd_file == NULL
+							&& old_file_descriptor->dup_fds == NULL
 							&& (old_file_descriptor->fd_t == FDT_STDIN
 									|| old_file_descriptor->fd_t == FDT_STDOUT))
 					|| (old_file_descriptor->fd_file != NULL
-							&& old_file_descriptor->fd_t == FDT_OTHER));
+							&& old_file_descriptor->fd_t == FDT_OTHER
+							&& old_file_descriptor->dup_fds));
 			if (oldfd == newfd)
 				return newfd;
 			syscall_close (newfd);
 			new_file_descriptor = &fd_t->table[newfd];
 			ASSERT (new_file_descriptor->fd_st == FD_CLOSE
 					&& new_file_descriptor->fd_t == FDT_OTHER
-					&& new_file_descriptor->fd_file == NULL);
-			if (old_file_descriptor->fd_file) {
-				new_file_descriptor->fd_file = old_file_descriptor->fd_file;
-				if (new_file_descriptor->fd_file == NULL)
-					return -1;
-				/////////////////////////////////////////////////////////////////////////////TODO: Link somehow old and new files
-			}
+					&& new_file_descriptor->fd_file == NULL
+					&& new_file_descriptor->dup_fds == NULL);
 			new_file_descriptor->fd_st = FD_OPEN;
 			new_file_descriptor->fd_t = old_file_descriptor->fd_t;
-			new_file_descriptor->dup_fds = old_file_descriptor->dup_fds;
-			new_file_descriptor->dup_fds[newfd] = 1;
+			if (old_file_descriptor->fd_file) {
+				ASSERT (old_file_descriptor->dup_fds);
+				new_file_descriptor->fd_file = file_dup2 (old_file_descriptor->fd_file);
+				new_file_descriptor->dup_fds = old_file_descriptor->dup_fds;
+				new_file_descriptor->dup_fds[newfd] = 1;
+			}
 			fd_t->size++;
 			return newfd;
 		case FD_CLOSE:
 			ASSERT (old_file_descriptor->fd_t == FDT_OTHER
-					&& old_file_descriptor->fd_file == NULL);
+					&& old_file_descriptor->fd_file == NULL
+					&& old_file_descriptor->dup_fds == NULL);
 			return -1;
 		default:
 			ASSERT (0);
