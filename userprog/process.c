@@ -222,7 +222,7 @@ duplicate_fd_table (struct fd_table *parent_fd_t) {
 	struct fd_table *curr_fd_t = &thread_current ()->fd_t;
 	struct file_descriptor *parent_fd, *curr_fd, *dup_fd;
 	enum intr_level old_level;
-	int dup_cnt;
+	size_t dup_cnt;
 
 	ASSERT (parent_fd_t);
 	ASSERT (parent_fd_t->table);
@@ -441,8 +441,6 @@ process_exit (int status) {
 	struct terminated_child_st *child_st;
 	struct list_elem *child_elem;
 	struct file_descriptor *fd;
-	bool empty = true;
-
 
 	ASSERT (intr_get_level () == INTR_OFF);
 

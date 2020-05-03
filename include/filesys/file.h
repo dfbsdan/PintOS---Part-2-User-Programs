@@ -1,7 +1,7 @@
 #ifndef FILESYS_FILE_H
 #define FILESYS_FILE_H
 
-#include <stdint.h>
+#include <stddef.h>
 #include "filesys/off_t.h"
 
 struct inode;
