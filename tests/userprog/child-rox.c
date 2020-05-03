@@ -13,7 +13,7 @@
 const char *test_name = "child-rox";
 
 static void
-try_write (void) 
+try_write (void)
 {
   int handle;
   char buffer[19];
@@ -24,28 +24,30 @@ try_write (void)
 
   CHECK (write (handle, buffer, sizeof buffer) == 0,
          "try to write \"child-rox\"");
-  
+
   close (handle);
 }
 
 int
-main (int argc UNUSED, char *argv[]) 
+main (int argc UNUSED, char *argv[])
 {
   msg ("begin");
   try_write ();
 
   if (!isdigit (*argv[1]))
     fail ("bad command-line arguments");
-  if (atoi (argv[1]) > 1) 
+  if (atoi (argv[1]) > 1)
     {
       char cmd[128];
       int child;
-      
+
       snprintf (cmd, sizeof cmd, "child-rox %d", atoi (argv[1]) - 1);
+      msg ("exec \"%s\"", cmd);
       if (!(child = fork ("child-rox"))){
         exec (cmd);
       }
-      CHECK (child != -1, "exec \"%s\"", cmd);
+      if (child < 0)
+        fail ("fork() returned %d", child);
       quiet = true;
       CHECK (wait (child) == 12, "wait for \"child-rox\"");
       quiet = false;
