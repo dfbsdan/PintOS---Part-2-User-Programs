@@ -58,7 +58,7 @@ struct file *
 file_dup2 (struct file *file) {
 	ASSERT (file
 			&& file->open_cnt >= 1
-			&& file->open_cnt <= inode_open_cnt (file->inode)
+			&& file->open_cnt <= (size_t)inode_open_cnt (file->inode)
 			&& inode_reopen (file->inode));
 	file->open_cnt++;
 	return file;
@@ -69,7 +69,7 @@ size_t
 file_open_cnt (struct file *file) {
 	ASSERT (file
 			&& file->open_cnt >= 1
-			&& file->open_cnt <= inode_open_cnt (file->inode));
+			&& file->open_cnt <= (size_t)inode_open_cnt (file->inode));
 	return file->open_cnt;
 }
 
